@@ -24,18 +24,18 @@ def get_all_headers(text, pos=0, endpos=None):
     """
     Return dictionary of all <KEY>VALUE formatted headers in EDGAR documents.
     Note this requires the daily feed version of the EDGAR files.
-    Dictionary keys are lowercase (`.lower()` is called)
+    Dictionary keys are lowercase (`.lower()` is called), and stripped.
 
     `pos` and `endpos` can be used to get headers for specific exhibits.
     """
     if endpos is None:
         endpos = len(text)
-    return {x.group(1).lower():x.group(2)
+    return {x.group(1).lower():x.group(2).strip()
             for x in RE_HEADER_TAG.finditer(text, pos, endpos) if x}
 
 def get_header(text, header, return_match=False, pos=0, endpos=None):
     """
-    Searches `text` for header formatted <`header`>VALUE\\n and returns VALUE.
+    Searches `text` for header formatted <`header`>VALUE\\n and returns VALUE.strip()
     Note this requires the daily feed version of the EDGAR files.
 
     `pos` and `endpos` can be used to get headers for specific exhibits.
@@ -45,7 +45,7 @@ def get_header(text, header, return_match=False, pos=0, endpos=None):
         endpos = len(text)
 
     match = re_tag.search(text, pos, endpos)
-    value = match.group(1) if match else ''
+    value = match.group(1).strip() if match else ''
 
     if return_match:
         return value, match
