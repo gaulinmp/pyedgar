@@ -16,6 +16,7 @@ __logger = logging.getLogger(__name__)
 
 _re_space = re.compile(r'\s')
 _re_spaces = re.compile(r'\s+')
+_re_spaces_2plus = re.compile(r'\s\s+')
 _re_nl = re.compile(r'[\n\r]')
 _re_nls = re.compile(r'[\n\r]+')
 _re_number = re.compile(r'\b[\'"$-]*[\d.][\d.,]*\b')
@@ -28,15 +29,18 @@ def find_newlines(text, pos=0, endpos=-1):
 
 def get_linestats(line, expected_line_length):
         r = {'line': line.rstrip()}
-        r['stripped_line'] = r['line'].lstrip()
+        r['line_strip'] = r['line'].lstrip()
 
         r['linelen'] = len(r['line'])
-        r['textlen'] = len(r['stripped_line'])
+        r['textlen'] = len(r['line_strip'])
         r['space_left'] = r['linelen'] - r['textlen']
         r['space_right'] = expected_line_length - r['linelen']
 
-        r['num_internal_spaces'] = len(_re_space.findall(r['stripped_line']))
-        r['num_tokens'] = len(_re_spaces.findall(r['stripped_line']))+1
+        r['num_internal_spaces'] = len(_re_space.findall(r['line_strip']))
+        r['num_internal_spacing'] = len(_re_spaces_2plus.findall(r['line_strip']))
+        r['len_internal_spacing'] = sum(len(s) for s in
+                                        _re_spaces_2plus.findall(r['line_strip']))
+        r['num_tokens'] = len(r['line_strip'].split())
         r['num_numbers'] = sum(1 for _ in _re_number.finditer(r['line']))
         r['tok_sp_ratio'] = r['num_tokens'] / r['num_internal_spaces'] \
                             if r['num_internal_spaces'] else 0
@@ -78,7 +82,7 @@ def unwrap_plaintext(text, expected_line_length=None):
 
         # If this line continues on next, remove left space from next line.
         if not newline:
-            stnext['line'] = stnext['stripped_line']
+            stnext['line'] = stnext['line_strip']
 
         # Remember, we're operating one line behind.
         joinlines.append(st['line'])
