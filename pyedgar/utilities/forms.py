@@ -10,6 +10,8 @@ import logging
 from subprocess import Popen, PIPE
 
 from . import plaintext
+from .html_encoding_lookup import html_ent_re_sub
+from .. import exceptions as EX
 
 __logger = logging.getLogger(__name__)
 
@@ -57,6 +59,9 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8):
         >>> {'cik', 'form_type', 'filing_date', 'text':[]}
     or None on failure.
     """
+    if not os.path.exists(file_path):
+        raise EX.FileNotFound
+
     with open(file_path, encoding='utf-8', errors='ignore',
               buffering=buff_size) as fh:
         text = fh.read(buff_size)
@@ -64,14 +69,14 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8):
         found_form = get_header(text, "TYPE")
         if form_type is not None:
             if not found_form or form_type.upper() != found_form.upper():
-                return None
+                raise EX.WrongFormType
 
         # Now find where the header stops (where first document starts)
         doc_start = RE_DOC_TAG_OPEN.search(text)
 
         # If no DOCUMENT tag found, this isn't an EDGAR form. ABORT!
         if not doc_start:
-            return None
+            raise EX.EDGARFilingFormatError
         # This is what I care about now. Could be changed to `get_all_headers`
         ret_dict = {'form_type': found_form.upper(),
                    'name': get_header(text, "CONFORMED-NAME",
@@ -110,9 +115,6 @@ def get_form(file_path):
     """
     Reads file at file_path and returns form between <TEXT> and </TEXT> tags.
     """
-    if not os.path.exists(file_path):
-        return ''
-
     text = get_form_with_header(file_path)
     if not text:
         return ''
@@ -125,7 +127,7 @@ def get_form(file_path):
         return text[st.end()]
     return text[st.end():en.start()]
 
-def get_plaintext(path, clean=True):
+def get_plaintext(path, clean=True, html_width=150):
     """
     Get the plaintext version of an edgar filing.
     Assumes the first exhibit in the full filing text document.
@@ -139,17 +141,22 @@ def get_plaintext(path, clean=True):
     :rtype: string
     """
     text = get_form(path)
-
     # If not an HTML file, just return the text.
     if not text or len(RE_HTML_TAGS.findall(text, 0, 2000)) <= 3:
         if clean:
             return plaintext.unwrap_plaintext(text, 80) # SGML is 80 chars wide
         return text
 
-    p1 = Popen('w3m -T text/html -dump -cols 150 -no-graph'.split(),
+    text = html_ent_re_sub(text)
+
+    p1 = Popen('w3m -T text/html -dump -cols {0} -no-graph'
+                .format(html_width).split(),
                 stdin=PIPE, stdout=PIPE)
+    # Now send it the text on STDIN (like cat file.html | w3m)
     output = p1.communicate(input=text.encode())
+
     p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
+    p1.terminate()
 
     if output[-1]:
         log.warning(output[-1])

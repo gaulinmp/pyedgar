@@ -15,12 +15,15 @@ import re
 
 html_ent_re = re.compile('&[^; ]{1,10};')
 
-def html_ent_re_sub(re_match):
+def html_ent_re_sub_lambda(re_match):
     ent = re_match.group(0)
     
     if ent in HTML_ENCODE_LOOKUP:
         return HTML_ENCODE_LOOKUP[ent]
     return HTML_ENCODE_LOOKUP.get(ent.lower(), ent)
+
+def html_ent_re_sub(text):
+    return html_ent_re.sub(html_ent_re_sub_lambda, text)
 
 HTML_ENCODE_LOOKUP = {
 """)
