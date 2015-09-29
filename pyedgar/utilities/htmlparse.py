@@ -2,8 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import re
+import logging
+from subprocess import Popen, PIPE
 
 from ._html_encoding_lookup import html_ent_re_sub
+
+__logger = logging.getLogger(__name__)
 
 RE_HTML_TAGS = re.compile(r'<(?:html|head|title|body|div|font|style|p\b|tr|td)', re.I)
 

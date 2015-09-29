@@ -7,7 +7,6 @@ Utilities for interacting with edgar forms.
 import os
 import re
 import logging
-from subprocess import Popen, PIPE
 
 from . import plaintext
 from .htmlparse import RE_HTML_TAGS, convert_html_to_text, html_ent_re_sub
