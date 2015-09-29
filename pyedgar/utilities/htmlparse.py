@@ -5,6 +5,7 @@ import re
 import logging
 from subprocess import Popen, PIPE
 
+from . import plaintext
 from ._html_encoding_lookup import html_ent_re_sub
 
 __logger = logging.getLogger(__name__)
