@@ -10,7 +10,7 @@ import logging
 from subprocess import Popen, PIPE
 
 from . import plaintext
-from .html_encoding_lookup import html_ent_re_sub
+from .htmlparse import RE_HTML_TAGS, convert_html_to_text, html_ent_re_sub
 from .. import exceptions as EX
 
 __logger = logging.getLogger(__name__)
@@ -20,7 +20,6 @@ RE_DOC_TAG_CLOSE = re.compile('</DOCUMENT>')
 RE_TEXT_TAG_OPEN  = re.compile('<TEXT>')
 RE_TEXT_TAG_CLOSE =  re.compile('</TEXT>')
 RE_HEADER_TAG = re.compile(r'^<(?P<key>[^/][^>]*)>(?P<value>.+)$', re.M)
-RE_HTML_TAGS = re.compile(r'<(?:html|head|title|body|div|font|style|p\b|tr|td)', re.I)
 
 def get_all_headers(text, pos=0, endpos=None):
     """
@@ -127,41 +126,20 @@ def get_form(file_path):
         return text[st.end()]
     return text[st.end():en.start()]
 
-def get_plaintext(path, clean=True, html_width=150):
+def get_plaintext(path, unwrap=True, document_width=150):
     """
     Get the plaintext version of an edgar filing.
     Assumes the first exhibit in the full filing text document.
     If HTML, uses w3m linux program to parse into plain text.
-    If `clean`, also unwraps paragraphs so each paragraph is on one line.
+    If `unwrap`, also unwraps paragraphs so each paragraph is on one line.
 
     :param string path: Full path to form.
-    :param bool clean: Whether to call `plaintext.unwrap_plaintext` on document.
+    :param bool unwrap: Whether to call `plaintext.unwrap_plaintext` on document.
+    :param int document_width: How wide the plaintext will be. Used in unwrapping.
 
     :return: Plain text representation of file.
     :rtype: string
     """
     text = get_form(path)
-    # If not an HTML file, just return the text.
-    if not text or len(RE_HTML_TAGS.findall(text, 0, 2000)) <= 3:
-        if clean:
-            return plaintext.unwrap_plaintext(text, 80) # SGML is 80 chars wide
-        return text
 
-    text = html_ent_re_sub(text)
-
-    p1 = Popen('w3m -T text/html -dump -cols {0} -no-graph'
-                .format(html_width).split(),
-                stdin=PIPE, stdout=PIPE)
-    # Now send it the text on STDIN (like cat file.html | w3m)
-    output = p1.communicate(input=text.encode())
-
-    p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
-    p1.terminate()
-
-    if output[-1]:
-        log.warning(output[-1])
-
-    if clean:
-        return plaintext.unwrap_plaintext(output[0].decode(), 150)
-
-    return output[0].decode()
+    return convert_html_to_text(text, unwrap=unwrap, document_width=document_width)
