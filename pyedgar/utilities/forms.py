@@ -33,7 +33,7 @@ def get_all_headers(text, pos=0, endpos=None):
     return {x.group(1).lower():x.group(2).strip()
             for x in RE_HEADER_TAG.finditer(text, pos, endpos) if x}
 
-def get_header(text, header, return_match=False, pos=0, endpos=None):
+def get_header(text, header, pos=0, endpos=None, return_match=False):
     """
     Searches `text` for header formatted <`header`>VALUE\\n and returns VALUE.strip()
     Note this requires the daily feed version of the EDGAR files.
