@@ -58,7 +58,7 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8):
     or None on failure.
     """
     if not os.path.exists(file_path):
-        raise EX.FileNotFound
+        raise EX.FileNotFound("File {} does not exist.".format(file_path))
 
     with open(file_path, encoding='utf-8', errors='ignore',
               buffering=buff_size) as fh:
