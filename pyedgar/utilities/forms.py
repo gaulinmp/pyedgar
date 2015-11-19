@@ -28,6 +28,10 @@ def get_all_headers(text, pos=0, endpos=None):
 
     `pos` and `endpos` can be used to get headers for specific exhibits.
     """
+    if pos==0 and endpos is None:
+        doc_tag_open = RE_DOC_TAG_OPEN.search(text)
+        if doc_tag_open:
+            endpos = doc_tag_open.start()
     if endpos is None:
         endpos = len(text)
     return {x.group(1).lower():x.group(2).strip()
