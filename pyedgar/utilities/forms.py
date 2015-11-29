@@ -19,6 +19,7 @@ RE_DOC_TAG_CLOSE = re.compile('</DOCUMENT>')
 RE_TEXT_TAG_OPEN  = re.compile('<TEXT>')
 RE_TEXT_TAG_CLOSE =  re.compile('</TEXT>')
 RE_HEADER_TAG = re.compile(r'^<(?P<key>[^/][^>]*)>(?P<value>.+)$', re.M)
+RE_HEADER_TAG_OC = re.compile(r'^<(?P<key>/?[^>]*)>(?P<value>.*)$', re.M)
 
 def get_all_headers(text, pos=0, endpos=None):
     """
@@ -36,6 +37,62 @@ def get_all_headers(text, pos=0, endpos=None):
         endpos = len(text)
     return {x.group(1).lower():x.group(2).strip()
             for x in RE_HEADER_TAG.finditer(text, pos, endpos) if x}
+
+def get_header_dictionary(text, pos=0, endpos=None, starter_dict=None):
+    """
+    Return dictionary of all <KEY>VALUE formatted headers in EDGAR documents.
+    Note this requires the daily feed version of the EDGAR files.
+    Dictionary keys are lowercase (`.lower()` is called), and stripped.
+
+    `pos` and `endpos` can be used to get headers for specific exhibits.
+    """
+    if pos==0 and endpos is None:
+        doc_tag_open = forms.RE_DOC_TAG_OPEN.search(text)
+        if doc_tag_open:
+            endpos = doc_tag_open.start()
+    if endpos is None:
+        endpos = len(text)
+
+    retdict = {}
+    if starter_dict is not None:
+        retdict.update(starter_dict)
+
+    stack = [retdict, ]
+    print(text[pos:endpos])
+
+    for imatch in RE_HEADER_TAG_OC.finditer(text, pos, endpos):
+        tmp = imatch.groupdict()
+        if 'key' not in tmp or 'value' not in tmp:
+            continue
+        key,val = tmp['key'].lower(), tmp['value'].strip()
+
+        if '/' in key:
+            # Then it's a closing tag. pop the last dict off the stack
+            if len(stack) > 1:
+                stack.pop()
+            # If there's a value... we don't care. That's bad formatting.
+            continue
+        elif val:
+            # Then just a normal key. Add to the dict at the end of the stack
+            stack[-1][key] = val.strip()
+            continue
+
+        # Otherwise this might be a sub-group. Look for the </KEY> tag.
+        re_end = re.compile('</{}>'.format(key), re.I)
+        if re_end.search(text, imatch.end(), endpos):
+            # Then we found the end tag. Create dict at KEY if KEY doesn't exist
+            if key in stack[-1]:
+                # Then try key_X for X from 0 to 200 I guess.
+                for key_i in range(200):
+                    newkey = '{}_{}'.format(key, key_i)
+                    if newkey not in stack[-1]:
+                        key = newkey
+                        break
+            # make a new dict at KEY
+            stack[-1][key] = {}
+            stack.append(stack[-1][key])
+
+    return retdict
 
 def get_header(text, header, pos=0, endpos=None, return_match=False):
     """
