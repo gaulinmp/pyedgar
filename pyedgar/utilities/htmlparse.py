@@ -10,7 +10,7 @@ from ._html_encoding_lookup import html_ent_re_sub
 
 __logger = logging.getLogger(__name__)
 
-RE_HTML_TAGS = re.compile(r'<(?:html|head|title|body|div|font|style|p\b|tr|td)', re.I)
+RE_HTML_TAGS = re.compile(r'</?(?:html|head|title|body|div|font|style|p\b|tr|td)', re.I)
 
 def convert_html_to_text(html_string, unwrap=True, document_width=150):
     """

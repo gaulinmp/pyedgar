@@ -14,12 +14,19 @@ from .. import exceptions as EX
 
 __logger = logging.getLogger(__name__)
 
+# I changed it so things work now. All utf-8
+# ENCODING_INPUT = 'latin-1'
+ENCODING_INPUT = 'utf-8'
+ENCODING_OUTPUT = 'utf-8'
+
 RE_DOC_TAG_OPEN = re.compile('<DOCUMENT>')
 RE_DOC_TAG_CLOSE = re.compile('</DOCUMENT>')
 RE_TEXT_TAG_OPEN  = re.compile('<TEXT>')
 RE_TEXT_TAG_CLOSE =  re.compile('</TEXT>')
-RE_HEADER_TAG = re.compile(r'^<(?P<key>[^/][^>]*)>(?P<value>.+)$', re.M)
-RE_HEADER_TAG_OC = re.compile(r'^<(?P<key>/?[^>]*)>(?P<value>.*)$', re.M)
+# Only matches <KEY>VALUE, no </KEY> nor <KEY>\n
+RE_HEADER_TAG = re.compile(r'^<(?P<key>[^/][^>]*)>\s*(?P<value>.+)$', re.M)
+# Matches anything like <*>*\n
+RE_HEADER_TAG_OC = re.compile(r'^<(?P<key>/?[^>]*)>\s*(?P<value>.*)$', re.M)
 
 def get_all_headers(text, pos=0, endpos=None):
     """
@@ -47,7 +54,7 @@ def get_header_dictionary(text, pos=0, endpos=None, starter_dict=None):
     `pos` and `endpos` can be used to get headers for specific exhibits.
     """
     if pos==0 and endpos is None:
-        doc_tag_open = forms.RE_DOC_TAG_OPEN.search(text)
+        doc_tag_open = RE_DOC_TAG_OPEN.search(text)
         if doc_tag_open:
             endpos = doc_tag_open.start()
     if endpos is None:
@@ -56,9 +63,8 @@ def get_header_dictionary(text, pos=0, endpos=None, starter_dict=None):
     retdict = {}
     if starter_dict is not None:
         retdict.update(starter_dict)
-
+    # push and pop 'current' dictionary from stack because pointers.
     stack = [retdict, ]
-    print(text[pos:endpos])
 
     for imatch in RE_HEADER_TAG_OC.finditer(text, pos, endpos):
         tmp = imatch.groupdict()
@@ -121,7 +127,7 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8):
     if not os.path.exists(file_path):
         raise FileNotFoundError("File {} does not exist.".format(file_path))
 
-    with open(file_path, encoding='utf-8', errors='ignore',
+    with open(file_path, encoding=ENCODING_INPUT, errors='ignore',
               buffering=buff_size) as fh:
         text = fh.read(buff_size)
 

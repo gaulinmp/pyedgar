@@ -6,11 +6,13 @@ Utilities for general EDGAR website tasks.
 EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 """
 import re
+# import datetime as dt
 
 # index URL: http://www.sec.gov/Archives/edgar/data/2098/0001026608-05-000015-index.htm
 # complete submission URL: http://www.sec.gov/Archives/edgar/data/2098/000102660805000015/0001026608-05-000015.txt
 # Exhibit/form URL: http://www.sec.gov/Archives/edgar/data/2098/000102660815000007/acu_10k123114.htm
 # ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
+
 def parse_url(url):
     """Return CIK and Accession from an EDGAR HTTP or FTP url.
 
@@ -63,3 +65,24 @@ def edgar_links(cik, accession=None):
 
     return ("<a href='{}' target=_blank>FTP</a><a href='{}' target=_blank>HTML</a>"
             .format(*urls))
+
+
+
+def get_edgar_ftp_path(date):
+    feed_path = "/edgar/Feed/{0:%Y}/QTR{1}/{0:%Y%m%d}.nc.tar.gz"
+
+    def get_qtr(datetime_in):
+        """
+        Return the quarter (1-4) based on the month.
+        Input is either a datetime object (or object with month attribute) or the month (1-12).
+        """
+        try:
+            return int((datetime_in.month-1)/3)+1
+        except AttributeError:
+            pass
+        try:
+            return int((datetime_in-1)/3)+1
+        except:
+            raise
+
+    return feed_path.format(date, get_qtr(date))
