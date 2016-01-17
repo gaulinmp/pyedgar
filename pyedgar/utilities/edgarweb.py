@@ -89,3 +89,6 @@ def get_daily_ftp_path(date):
     return feed_path.format(date, _get_qtr(date))
 
 def get_idx_ftp_path(date):
+    """Get FTP path to daily index file."""
+    idx_path = "/edgar/daily-index/{0:%Y}/QTR{1}/master.{0:%Y%m%d}.idx.gz"
+    return idx_path.format(date, _get_qtr(date))
