@@ -2,15 +2,16 @@
 # -*- coding: utf-8 -*-
 """
 Utilities for interacting with edgar forms.
+
+COPYRIGHT: None. I don't get paid for this.
 """
 
-import os
 import re
 import logging
 
 from . import plaintext
-from .htmlparse import RE_HTML_TAGS, convert_html_to_text, html_ent_re_sub
-from .. import exceptions as EX
+from .htmlparse import convert_html_to_text
+from ..exceptions import *
 
 __logger = logging.getLogger(__name__)
 
@@ -134,14 +135,14 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8):
         found_form = get_header(text, "TYPE")
         if form_type is not None:
             if not found_form or form_type.upper() != found_form.upper():
-                raise EX.WrongFormType
+                raise WrongFormType
 
         # Now find where the header stops (where first document starts)
         doc_start = RE_DOC_TAG_OPEN.search(text)
 
         # If no DOCUMENT tag found, this isn't an EDGAR form. ABORT!
         if not doc_start:
-            raise EX.EDGARFilingFormatError
+            raise EDGARFilingFormatError
         # This is what I care about now. Could be changed to `get_all_headers`
         ret_dict = {'form_type': found_form.upper(),
                    'name': get_header(text, "CONFORMED-NAME",

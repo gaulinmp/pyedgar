@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Utilities for general EDGAR website tasks.
+
+COPYRIGHT: None. I don't get paid for this.
 """
 import os
 import re

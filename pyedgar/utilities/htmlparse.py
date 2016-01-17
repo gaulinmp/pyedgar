@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""
+Module for parsing HTML files.
+
+COPYRIGHT: None. I don't get paid for this.
+"""
 
 import re
 import logging

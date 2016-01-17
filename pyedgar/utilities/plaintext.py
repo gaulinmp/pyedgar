@@ -4,12 +4,12 @@
 General utilities for interacting with plaintext documents.
 
 EDGAR document specification details: https://www.sec.gov/info/edgar/pdsdissemspec051310.pdf
+
+COPYRIGHT: None. I don't get paid for this.
 """
 
-import bisect
-import logging
-import os
 import re
+import logging
 from collections import Counter
 
 __logger = logging.getLogger(__name__)
@@ -91,10 +91,6 @@ def unwrap_plaintext(text, expected_line_length=None):
     joinlines.append(stnext['line'])
 
     return ''.join(joinlines)
-
-def find_newlines(text, pos=0, endpos=-1):
-    return list(_re_nl.finditer(text, pos=pos,
-                                endpos=endpos if endpos > pos else len(txt)))
 
 def get_para_bounds(text, position):
     r"""Gets location of nearest newlines surrounding `position` in `text`.

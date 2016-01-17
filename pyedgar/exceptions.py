@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
-pyedgar.exceptions
+Exceptions for the project.
 
-This module contains pyEDGAR's exceptions.
+COPYRIGHT: None. I don't get paid for this.
 """
 
 class InputTypeError(Exception):
