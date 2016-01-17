@@ -10,20 +10,12 @@ EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 COPYRIGHT: None. I don't get paid for this.
 """
 
-
 import os
 import re
-import sys
-import json
-import time
-import shutil
-import urllib
 import tarfile
-import tempfile
 import logging
+import datetime as dt
 from ftplib import FTP, error_perm
-from datetime import date
-from time import clock, strftime
 
 from .exceptions import *
 from .utilities import localstore
@@ -126,8 +118,49 @@ class EDGARDownloader(object):
 
     def download_daily_feed(self, dl_date):
         """Download a daily feed tar given a datetime input."""
-        sec_path = edgarweb.get_edgar_ftp_path(dl_date)
+        sec_path = edgarweb.get_daily_ftp_path(dl_date)
         tmp_filename = self._path_formatter.get_tmp_filename(dl_date)
+
+        # If it fails, try, try, try, try again. Then stop; accept failure.
+        for retries in range(5):
+            try:
+                self._ftp.sendcmd("TYPE i")    # Switch to Binary mode
+                exp_size = self._ftp.size(sec_path)  # Get size of file
+            except error_perm:                 # file doesn't exist, skip.
+                return ''
+            except AttributeError:             # self._ftp is None. Login and retry.
+                self._login()
+                continue
+
+            if os.path.exists(tmp_filename):
+                size_ratio = exp_size/(os.path.getsize(tmp_filename) + 1e-12)
+                if .99 < size_ratio < 1.01:
+                    self.__logger.info("Already downloaded {}".format(tmp_filename))
+                    break
+                else:
+                    self.__logger.info("Found file, but wrong size. FTP:{}, Local:{}. Ratio {}."
+                                  .format(exp_size,
+                                          os.path.getsize(tmp_filename),
+                                          size_ratio))
+
+            with open(tmp_filename, 'wb') as fh:
+                self.__logger.info("Downloading {} to {}".format(dl_date, tmp_filename))
+                try:
+                    self._ftp.retrbinary("RETR " + sec_path, fh.write)
+                except IOError:
+                    # Soemtimes FTP logs us out or times our or something.
+                    # Start again from the top, wot wot.
+                    self._login()
+                    continue
+                else:
+                    break
+        return tmp_filename
+
+    def download_from_ftp(self, ftp_path, destination_filename):
+        """Download a daily feed tar given a datetime input."""
+        if not os.path.exists(os.dirname(destination_filename)):
+            raise FileNotFoundError('The directory does not exist: {}'
+                                    .format(os.dirname(destination_filename)))
 
         # If it fails, try, try, try, try again. Then stop; accept failure.
         for retries in range(5):
@@ -166,13 +199,13 @@ class EDGARDownloader(object):
 
     def iter_daily_feeds(self, from_date, to_date=None):
         """
-        Generator that yields (date, downloaded daily feed tar file path)
+        Generator that yields (dt.date, downloaded daily feed tar file path)
         """
         if to_date is None:
-            to_date = date.today()
+            to_date = dt.date.today()
 
         for i_date in range(from_date.toordinal(), to_date.toordinal()):
-            i_date = date.fromordinal(i_date-1)
+            i_date = dt.date.fromordinal(i_date-1)
 
             # Actually get the file. This downloads it, or passes the filepath to the cached file.
             yield i_date, self.download_daily_feed(i_date)
@@ -250,4 +283,4 @@ class EDGARDownloader(object):
 if __name__ == '__main__':
     foo = EDGARDownloader()
     foo.email = 'mpg@rice.edu'
-    foo.extract_daily_feeds(date.fromordinal(date.today().toordinal()-90))
+    foo.extract_daily_feeds(dt.date.fromordinal(dt.date.today().toordinal()-90))

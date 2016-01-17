@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Utilities for interacting with edgar forms.
+
+COPYRIGHT: None. I don't get paid for this.
 """
 
 # import os
