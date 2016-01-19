@@ -83,12 +83,21 @@ def _get_qtr(datetime_in):
     except:
         raise
 
-def get_daily_ftp_path(date):
+def get_feed_ftp_path(date):
     """Get FTP path to daily feed gzip file."""
     feed_path = "/edgar/Feed/{0:%Y}/QTR{1}/{0:%Y%m%d}.nc.tar.gz"
     return feed_path.format(date, _get_qtr(date))
 
-def get_idx_ftp_path(date):
-    """Get FTP path to daily index file."""
-    idx_path = "/edgar/daily-index/{0:%Y}/QTR{1}/master.{0:%Y%m%d}.idx.gz"
-    return idx_path.format(date, _get_qtr(date))
+def get_idx_ftp_path(date_or_year, quarter=None, tar=False):
+    """
+    Get FTP path to quarterly index file. Don't feed it a year and no quarter.
+    """
+    if quarter is None:
+        quarter = _get_qtr(date_or_year)
+    try:
+        date_or_year = date_or_year.year
+    except AttributeError:
+        # Then date_or_year is an integer. Leave it be.
+        pass
+    idx_path = "/edgar/full-index/{0}/QTR{1}/master.idx{2}"
+    return idx_path.format(date_or_year, quarter, '.gz' if tar else '')

@@ -6,6 +6,7 @@ Download a local copy of EDGAR. Allows for permenant caching of downloaded daily
 Probably only works on Linux.
 
 EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
+EDGAR FTP specification: https://www.sec.gov/edgar/searchedgar/ftpusers.htm
 
 COPYRIGHT: None. I don't get paid for this.
 """
@@ -15,7 +16,7 @@ import re
 import tarfile
 import logging
 import datetime as dt
-from ftplib import FTP, error_perm
+from ftplib import FTP, all_errors
 
 from .exceptions import *
 from .utilities import localstore
@@ -29,13 +30,21 @@ class FilingPathFormatter(object):
         """Take cik, accession, and whatever else data. Return Path to local file."""
         return localstore.get_filing_path(cik, accession)
 
-    def get_tmp_filename(self, ident_string=None):
+    def get_feed_filename(self, ident_string=None):
         """
-        Return temp path for feed tar file. Could be permant if caching is on.
+        Return temp path for feed tar file. Could be permanent if caching is on.
         This implementation requires a datetime object input.
         """
         return ("/data/backup/edgar/feeds/sec_daily_{0:%Y-%m-%d}.tar.gz"
                 .format(ident_string))
+
+    def get_index_filename(self, ident_string=None):
+        """
+        Return temp path for index tar file. Could be permanent if caching is on.
+        This implementation requires a datetime object input.
+        """
+        return ("/data/storage/edgar/indices/src/full_index_{0:%Y}_Q{1}.idx"
+                .format(ident_string, edgarweb._get_qtr(ident_string)))
 
 
 class EDGARDownloader(object):
@@ -116,86 +125,59 @@ class EDGARDownloader(object):
 
         return ret_val
 
+    def download_from_ftp(self, ftp_path, local_target):
+        """Download a daily feed tar given a datetime input."""
+        if not os.path.exists(os.path.dirname(local_target)):
+            raise FileNotFoundError('The directory does not exist: {}'
+                                    .format(os.path.dirname(local_target)))
+
+        # If it fails, try, try, try, try again. Then stop; accept failure.
+        for retries in range(5):
+            try:
+                self._ftp.sendcmd("TYPE i")    # Switch to Binary mode
+                exp_size = self._ftp.size(ftp_path)  # Get size of file
+            except all_errors:                 # file doesn't exist, skip.
+                return ''
+            except AttributeError:             # self._ftp is None. Login and retry.
+                self._login()
+                continue
+
+            if os.path.exists(local_target):
+                size_ratio = exp_size/(os.path.getsize(local_target) + 1e-12)
+                if .99 < size_ratio < 1.01:
+                    self.__logger.info("Already downloaded {}".format(local_target))
+                    break
+                else:
+                    self.__logger.info("Found file, but wrong size. FTP:{}, Local:{}. Ratio {}."
+                                       .format(exp_size, os.path.getsize(local_target), size_ratio))
+
+            with open(local_target, 'wb') as fh:
+                self.__logger.info("Downloading {} to {}".format(ftp_path, local_target))
+                try:
+                    self._ftp.retrbinary("RETR " + ftp_path, fh.write)
+                except IOError:
+                    # Soemtimes FTP logs us out or times our or something.
+                    # Start again from the top, wot wot.
+                    self._login()
+                    continue
+                else:
+                    break
+        return local_target
+
     def download_daily_feed(self, dl_date):
         """Download a daily feed tar given a datetime input."""
-        sec_path = edgarweb.get_daily_ftp_path(dl_date)
-        tmp_filename = self._path_formatter.get_tmp_filename(dl_date)
+        sec_path = edgarweb.get_feed_ftp_path(dl_date)
+        tmp_filename = self._path_formatter.get_feed_filename(dl_date)
 
-        # If it fails, try, try, try, try again. Then stop; accept failure.
-        for retries in range(5):
-            try:
-                self._ftp.sendcmd("TYPE i")    # Switch to Binary mode
-                exp_size = self._ftp.size(sec_path)  # Get size of file
-            except error_perm:                 # file doesn't exist, skip.
-                return ''
-            except AttributeError:             # self._ftp is None. Login and retry.
-                self._login()
-                continue
+        return self.download_from_ftp(sec_path, tmp_filename)
 
-            if os.path.exists(tmp_filename):
-                size_ratio = exp_size/(os.path.getsize(tmp_filename) + 1e-12)
-                if .99 < size_ratio < 1.01:
-                    self.__logger.info("Already downloaded {}".format(tmp_filename))
-                    break
-                else:
-                    self.__logger.info("Found file, but wrong size. FTP:{}, Local:{}. Ratio {}."
-                                  .format(exp_size,
-                                          os.path.getsize(tmp_filename),
-                                          size_ratio))
-
-            with open(tmp_filename, 'wb') as fh:
-                self.__logger.info("Downloading {} to {}".format(dl_date, tmp_filename))
-                try:
-                    self._ftp.retrbinary("RETR " + sec_path, fh.write)
-                except IOError:
-                    # Soemtimes FTP logs us out or times our or something.
-                    # Start again from the top, wot wot.
-                    self._login()
-                    continue
-                else:
-                    break
-        return tmp_filename
-
-    def download_from_ftp(self, ftp_path, destination_filename):
+    def download_daily_index(self, dl_date):
         """Download a daily feed tar given a datetime input."""
-        if not os.path.exists(os.dirname(destination_filename)):
-            raise FileNotFoundError('The directory does not exist: {}'
-                                    .format(os.dirname(destination_filename)))
+        # For now, get the IDX file, not the zipped file. Because laziness and edu internet.
+        sec_path = edgarweb.get_idx_ftp_path(dl_date)
+        tmp_filename = self._path_formatter.get_index_filename(dl_date)
 
-        # If it fails, try, try, try, try again. Then stop; accept failure.
-        for retries in range(5):
-            try:
-                self._ftp.sendcmd("TYPE i")    # Switch to Binary mode
-                exp_size = self._ftp.size(sec_path)  # Get size of file
-            except error_perm:                 # file doesn't exist, skip.
-                return ''
-            except AttributeError:             # self._ftp is None. Login and retry.
-                self._login()
-                continue
-
-            if os.path.exists(tmp_filename):
-                size_ratio = exp_size/(os.path.getsize(tmp_filename) + 1e-12)
-                if .99 < size_ratio < 1.01:
-                    self.__logger.info("Already downloaded {}".format(tmp_filename))
-                    break
-                else:
-                    self.__logger.info("Found file, but wrong size. FTP:{}, Local:{}. Ratio {}."
-                                  .format(exp_size,
-                                          os.path.getsize(tmp_filename),
-                                          size_ratio))
-
-            with open(tmp_filename, 'wb') as fh:
-                self.__logger.info("Downloading {} to {}".format(dl_date, tmp_filename))
-                try:
-                    self._ftp.retrbinary("RETR " + sec_path, fh.write)
-                except IOError:
-                    # Soemtimes FTP logs us out or times our or something.
-                    # Start again from the top, wot wot.
-                    self._login()
-                    continue
-                else:
-                    break
-        return tmp_filename
+        return self.download_from_ftp(sec_path, tmp_filename)
 
     def iter_daily_feeds(self, from_date, to_date=None):
         """
