@@ -10,6 +10,7 @@ import re
 
 # This is platform specific. Probably a better solution than hard coding...
 FEED_ROOT = '/data/storage/edgar/feeds/'
+INDEX_ROOT = '/data/storage/edgar/indices/'
 ACCESSION_RE = re.compile(r'(?P<accession>\d{10}-?\d\d-?\d{6})', re.I)
 
 def get_filing_path(cik, accession):

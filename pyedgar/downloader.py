@@ -35,16 +35,18 @@ class FilingPathFormatter(object):
         Return temp path for feed tar file. Could be permanent if caching is on.
         This implementation requires a datetime object input.
         """
-        return ("/data/backup/edgar/feeds/sec_daily_{0:%Y-%m-%d}.tar.gz"
-                .format(ident_string))
+        return os.path.join(localstore.INDEX_ROOT,
+                            "sec_daily_{0:%Y-%m-%d}.tar.gz"
+                            .format(ident_string))
 
     def get_index_filename(self, ident_string=None):
         """
         Return temp path for index tar file. Could be permanent if caching is on.
         This implementation requires a datetime object input.
         """
-        return ("/data/storage/edgar/indices/src/full_index_{0:%Y}_Q{1}.idx"
-                .format(ident_string, edgarweb._get_qtr(ident_string)))
+        return os.path.join(localstore.INDEX_ROOT, 'src',
+                            "full_index_{0:%Y}_Q{1}.idx"
+                            .format(ident_string, edgarweb._get_qtr(ident_string)))
 
 
 class EDGARDownloader(object):
@@ -261,8 +263,40 @@ class EDGARDownloader(object):
                 except:
                     pass
 
-# Example running script
+# Example running script. This will download past 3 months of forms and all indices.
 if __name__ == '__main__':
+    import pandas as pd
     foo = EDGARDownloader()
     foo.email = 'mpg@rice.edu'
+
+    print("Downloading and extracting the last three months...", end='')
     foo.extract_daily_feeds(dt.date.fromordinal(dt.date.today().toordinal()-90))
+    print(" Done!")
+
+    print("Downloading the quarterly indices...", end='')
+    df = pd.DataFrame()
+    for y in range(1995, dt.date.today().year):
+        for q in range(4):
+            d = dt.date(y, 1+q*3, 1)
+            f = foo.download_daily_index(d)
+            if not f:
+                continue
+            dfi = pd.read_csv(f, sep='|', skiprows=[0,1,2,3,4,5,6,7,9], encoding='latin-1')
+            dfi['Accession'] = dfi.Filename.apply(lambda x: x.split('/')[-1][:-4])
+            del dfi['Filename']
+
+            df = pd.concat([df, dfi], copy=False)
+
+    df['Date Filed'] = pd.to_datetime(df['Date Filed'])
+    df.to_csv(os.path.join(localstore.INDEX_ROOT, 'all_filings.tab'), sep='\t', index=False)
+    save_forms = {
+        '10-K': [x for x in all_forms if '10-K' in x and '405' not in x and 'NT' not in x],
+        '10-Q': [x for x in all_forms if '10-Q' in x and 'NT' not in x],
+        'DEF14A':  [x for x in all_forms if x.endswith('14A')],
+        '8-K': '8-K 8-K/A'.split(),
+    }
+    for form,formlist in save_forms.items():
+        (df[df['Form Type'].isin(formlist)]
+           .to_csv(os.path.join(localstore.INDEX_ROOT, 'form_{}.tab'.format(form)),
+                   sep='\t', index=False))
+    print(" Done!")
