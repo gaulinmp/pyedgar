@@ -276,7 +276,7 @@ if __name__ == '__main__':
 
     print("Downloading the quarterly indices...", end='')
     df = pd.DataFrame()
-    for y in range(1995, dt.date.today().year):
+    for y in range(1995, dt.date.today().year + 1):
         for q in range(4):
             d = dt.date(y, 1+q*3, 1)
             f = foo.download_daily_index(d)
