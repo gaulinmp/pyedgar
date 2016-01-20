@@ -26,7 +26,7 @@ from .utilities import edgarweb
 
 class FilingPathFormatter(object):
     """Placeholder class so you can throw your own pathing here."""
-    def get_path(self, cik, accession, *args, **kwargs):
+    def get_filing_filename(self, cik, accession, *args, **kwargs):
         """Take cik, accession, and whatever else data. Return Path to local file."""
         return localstore.get_filing_path(cik, accession)
 
@@ -35,7 +35,7 @@ class FilingPathFormatter(object):
         Return temp path for feed tar file. Could be permanent if caching is on.
         This implementation requires a datetime object input.
         """
-        return os.path.join(localstore.FEED_ROOT,
+        return os.path.join(localstore.FEED_CACHE_ROOT,
                             "sec_daily_{0:%Y-%m-%d}.tar.gz"
                             .format(ident_string))
 
@@ -57,7 +57,7 @@ class EDGARDownloader(object):
     """
     # These should work for everypeople.
     # EDGAR_ENCODING = 'latin-1' # The SEC documentation says it uses latin-1
-    EDGAR_ENCODING = 'utf-8' # But my tests say UTF-8 works...
+    EDGAR_ENCODING = 'utf-8' # But I like utf-8. Because.
 
     # These should be changed for you. Either in source, or more better at runtime.
     email = None
@@ -243,7 +243,8 @@ class EDGARDownloader(object):
                                             .format(tarinfo.name, i_date))
                         continue
                     # Get local nc file path. Accession is nc file filename.
-                    nc_out_path = self._path_formatter.get_path(nc_dict['cik'], tarinfo.name)
+                    nc_out_path = self._path_formatter.get_filing_filename(nc_dict['cik'],
+                                                                           tarinfo.name)
                     i_done += 1
                     if os.path.exists(nc_out_path):
                         continue
