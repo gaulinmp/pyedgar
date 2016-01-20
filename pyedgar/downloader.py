@@ -35,7 +35,7 @@ class FilingPathFormatter(object):
         Return temp path for feed tar file. Could be permanent if caching is on.
         This implementation requires a datetime object input.
         """
-        return os.path.join(localstore.INDEX_ROOT,
+        return os.path.join(localstore.FEED_ROOT,
                             "sec_daily_{0:%Y-%m-%d}.tar.gz"
                             .format(ident_string))
 
