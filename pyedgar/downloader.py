@@ -290,6 +290,7 @@ if __name__ == '__main__':
 
     df['Date Filed'] = pd.to_datetime(df['Date Filed'])
     df.to_csv(os.path.join(localstore.INDEX_ROOT, 'all_filings.tab'), sep='\t', index=False)
+    all_forms = df['Form Type'].unique()
     save_forms = {
         '10-K': [x for x in all_forms if '10-K' in x and '405' not in x and 'NT' not in x],
         '10-Q': [x for x in all_forms if '10-Q' in x and 'NT' not in x],
