@@ -7,6 +7,7 @@ COPYRIGHT: None. I don't get paid for this.
 """
 
 import re
+import os
 import logging
 
 from . import plaintext
@@ -210,3 +211,13 @@ def get_plaintext(path, unwrap=True, document_width=150):
     text = get_form(path)
 
     return convert_html_to_text(text, unwrap=unwrap, document_width=document_width)
+
+class ciks(object):
+    GOOGLE = 1288776
+    AMAZON = 1018724
+    FACEBOOK = 1326801
+    APPLE = 320193
+    GE = 40545
+    NIKE = 320187
+    FORD = 37996
+    WALMART = 104169
