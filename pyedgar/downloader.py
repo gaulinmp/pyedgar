@@ -299,6 +299,7 @@ if __name__ == '__main__':
     }
     for form,formlist in save_forms.items():
         (df[df['Form Type'].isin(formlist)]
+           .sort_values(['CIK','Date Filed'])
            .to_csv(os.path.join(localstore.INDEX_ROOT, 'form_{}.tab'.format(form)),
                    sep='\t', index=False))
     print(" Done!")
