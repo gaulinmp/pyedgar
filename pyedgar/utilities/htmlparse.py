@@ -15,9 +15,9 @@ from ._html_encoding_lookup import html_ent_re_sub
 
 __logger = logging.getLogger(__name__)
 
-RE_HTML_TAGS = re.compile(r'</?(?:html|head|title|body|div|font|style|p\b|tr|td)', re.I)
+RE_HTML_TAGS = re.compile(r'</?(?:html|head|title|body|div|font|style|[apb]\b|tr|td|h\d)', re.I)
 
-def convert_html_to_text(html_string, unwrap=True, document_width=150):
+def convert_html_to_text(html_string, unwrap=True, document_width=150, force=False):
     """
     Get the plaintext version of an HTML string.
     If HTML, uses w3m linux program to parse into plain text.
@@ -31,7 +31,7 @@ def convert_html_to_text(html_string, unwrap=True, document_width=150):
     :rtype: string
     """
     # If not an HTML file, just return the text.
-    if not html_string or len(RE_HTML_TAGS.findall(html_string, 0, 2000)) <= 3:
+    if force or not html_string or len(RE_HTML_TAGS.findall(html_string, 0, 2000)) <= 3:
         if unwrap:
             return plaintext.unwrap_plaintext(html_string, 80) # SGML is 80 chars wide
         return html_string
