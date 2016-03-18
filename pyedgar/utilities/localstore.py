@@ -50,6 +50,11 @@ def walk_files(root_dir, filename_regex=None, return_dirs=False):
     :return: Full path to filename or directory that matches optional regex.
     :rtype: string
     """
+    if not hasattr(filename_regex, "search"):
+        try:
+            filename_regex = re.compile(filename_regex)
+        except TypeError:
+            return []
     for r,ds,fs in os.walk(root_dir):
         if return_dirs:
             for d in ds:
