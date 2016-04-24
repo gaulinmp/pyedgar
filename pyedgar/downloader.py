@@ -196,10 +196,13 @@ class EDGARDownloader(object):
 
     def extract_daily_feeds(self, from_date, to_date=None):
         """
+        Loop through daily feed compressed files and extract them to local cache.
+        Uses the object's path formatter to determine file paths.
         """
         for i_date, feed_path in self.iter_daily_feeds(from_date, to_date=to_date):
             if not feed_path:
-                # This day doesn't exist on EDGAR. Not sure why servers can't work on weekends.
+                # This day doesn't exist on EDGAR.
+                # Not sure why servers can't work on weekends.
                 continue
 
             if not os.path.exists(feed_path):
