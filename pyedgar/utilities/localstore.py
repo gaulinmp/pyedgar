@@ -3,7 +3,7 @@
 """
 Utilities for general EDGAR website tasks.
 
-COPYRIGHT: None. I don't get paid for this.
+COPYRIGHT: MIT
 """
 import os
 import re

@@ -8,7 +8,7 @@ Probably only works on Linux.
 EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 EDGAR FTP specification: https://www.sec.gov/edgar/searchedgar/ftpusers.htm
 
-COPYRIGHT: None. I don't get paid for this.
+COPYRIGHT: MIT
 """
 
 import os

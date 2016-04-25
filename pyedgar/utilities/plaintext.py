@@ -5,7 +5,7 @@ General utilities for interacting with plaintext documents.
 
 EDGAR document specification details: https://www.sec.gov/info/edgar/pdsdissemspec051310.pdf
 
-COPYRIGHT: None. I don't get paid for this.
+COPYRIGHT: MIT
 """
 
 import re

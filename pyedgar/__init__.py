@@ -10,10 +10,11 @@ data sources, primarily the EDGAR distribution system.
 
 Files from the SEC reside at ftp://ftp.sec.gov/edgar/
 
+COPYRIGHT: MIT
 """
 
 __title__ = 'pyedgar'
-__version__ = '0.0.1'
+__version__ = '0.0.2a1'
 __author__ = 'Mac Gaulin'
 __license__ = 'MIT'
 __copyright__ = 'Copyright 2015 Mac Gaulin'

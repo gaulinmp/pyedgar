@@ -7,7 +7,7 @@ with open('html_entity_lookups.tsv', 'r') as fh:
         df_lk[c] = df_lk[c].apply(lambda x: x[1:-1] if len(x) > 1 else x)
     df_lk['selected'] = df_lk.apply(lambda x: x.decode if x.lookup == 1 else x.unidecode, axis=1)
 
-    with open('pyedgar/utilities/_html_encoding_lookup.py', 'w') as fh:
+    with open('../pyedgar/utilities/_html_encoding_lookup.py', 'w') as fh:
         fh.write("""#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
