@@ -3,7 +3,7 @@
 """
 Utilities for interacting with edgar forms.
 
-COPYRIGHT: None. I don't get paid for this.
+COPYRIGHT: MIT
 """
 
 import re

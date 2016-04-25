@@ -3,7 +3,7 @@
 """
 Exceptions for the project.
 
-COPYRIGHT: None. I don't get paid for this.
+COPYRIGHT: MIT
 """
 
 class InputTypeError(Exception):

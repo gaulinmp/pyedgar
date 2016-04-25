@@ -3,7 +3,7 @@
 """
 Module for parsing HTML files.
 
-COPYRIGHT: None. I don't get paid for this.
+COPYRIGHT: MIT
 """
 
 import re

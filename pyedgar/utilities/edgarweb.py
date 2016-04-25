@@ -10,7 +10,7 @@ ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
 
 EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 
-COPYRIGHT: None. I don't get paid for this.
+COPYRIGHT: MIT
 """
 import re
 # import datetime as dt
