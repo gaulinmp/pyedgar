@@ -1,0 +1,13 @@
+include MANIFEST.in
+include LICENSE
+include README.rst
+include setup.py
+
+global-exclude *.so
+global-exclude *.pyd
+global-exclude *.pyc
+global-exclude *~
+global-exclude \#*
+global-exclude .git*
+global-exclude .DS_Store
+global-exclude *.png
