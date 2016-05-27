@@ -7,6 +7,9 @@ COPYRIGHT: MIT
 """
 import os
 import re
+import logging
+
+__logger = logging.getLogger(__name__)
 
 # This is platform specific. Probably a better solution than hard coding...
 FEED_ROOT = '/data/storage/edgar/feeds/'
@@ -43,23 +46,27 @@ def walk_files(root_dir, filename_regex=None, return_dirs=False):
     """Iteratively walk directories and files, returning full paths.
 
     :param str root_dir: The root directory at which to start searching.
-    :param re filename_regex: Compiled regular expression on which `search` is
-    called and passed the file or directory name.
+    :param re filename_regex: Regular expression (or string pattern) to which
+              files or directories must match.
     :param bool return_dirs: Return directories as well as files.
 
     :return: Full path to filename or directory that matches optional regex.
     :rtype: string
     """
-    if not hasattr(filename_regex, "search"):
+    if filename_regex is not None:
         try:
+            # One can chain re.compile calls. This obviates checking type.
             filename_regex = re.compile(filename_regex)
-        except TypeError:
-            return []
+        except (re.error, TypeError) as e:
+            __logger.error("Regular expression provided is invalid!")
+            raise(e)
     for r,ds,fs in os.walk(root_dir):
         if return_dirs:
             for d in ds:
-                if not filename_regex or filename_regex.search(d):
-                    yield os.path.join(r,d)
+                if filename_regex is not None and not filename_regex.search(d):
+                    continue
+                yield os.path.join(r,d)
         for f in fs:
-            if not filename_regex or filename_regex.search(f):
-                yield os.path.join(r,f)
+            if filename_regex is not None and not filename_regex.search(f):
+                continue
+            yield os.path.join(r,f)
