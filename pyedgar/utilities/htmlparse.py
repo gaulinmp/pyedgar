@@ -24,14 +24,18 @@ def convert_html_to_text(html_string, unwrap=True, document_width=150, force=Fal
     If `unwrap`, also unwraps paragraphs so each paragraph is on one line.
     TODO: come up with better unwrapping algorithm.
 
-    :param string path: Full path to form.
-    :param bool clean: Whether to call `plaintext.unwrap_plaintext` on document.
+    :param string html_string: HTML or text document in a string
+    :param bool unwrap: If True (default) call `plaintext.unwrap_plaintext` on text
+    :param document_width: Expected width of lines in text (used for unwrapping, default=150).
+    :param bool force: Skip checking whether text is HTML (# of valid HTML
+        tags >= 3, default=False).
 
     :return: Plain text representation of file.
     :rtype: string
     """
     # If not an HTML file, just return the text.
-    if force or not html_string or len(RE_HTML_TAGS.findall(html_string, 0, 2000)) <= 3:
+    if (not force or not html_string
+        or len(RE_HTML_TAGS.findall(html_string, 0, 2000)) <= 3:
         if unwrap:
             return plaintext.unwrap_plaintext(html_string, 80) # SGML is 80 chars wide
         return html_string
