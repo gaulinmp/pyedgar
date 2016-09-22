@@ -34,8 +34,8 @@ def convert_html_to_text(html_string, unwrap=True, document_width=150, force=Fal
     :rtype: string
     """
     # If not an HTML file, just return the text.
-    if (not force or not html_string
-        or len(RE_HTML_TAGS.findall(html_string, 0, 2000)) <= 3:
+    if (not force and
+        (not html_string or len(RE_HTML_TAGS.findall(html_string, 0, 2000)) <= 3)):
         if unwrap:
             return plaintext.unwrap_plaintext(html_string, 80) # SGML is 80 chars wide
         return html_string

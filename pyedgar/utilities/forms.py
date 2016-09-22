@@ -120,7 +120,8 @@ def get_header(text, header, pos=0, endpos=None, return_match=False):
         return value, match
     return value
 
-def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8):
+def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8,
+                         encoding=None, errors=None):
     """
     Reads file or string, returns:
         >>> {'cik', 'form_type', 'filing_date', 'text':[]}
@@ -129,7 +130,7 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8):
     if not os.path.exists(file_path):
         raise FileNotFoundError("File {} does not exist.".format(file_path))
 
-    with open(file_path, encoding=ENCODING_INPUT, errors='ignore',
+    with open(file_path, encoding=encoding or ENCODING_INPUT, errors=errors or 'ignore',
               buffering=buff_size) as fh:
         text = fh.read(buff_size)
 
@@ -178,11 +179,11 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8):
         return text[st.end()]
     return text[st.end():en.start()]
 
-def get_form(file_path):
+def get_form(file_path, encoding=None, errors=None):
     """
     Reads file at file_path and returns form between <TEXT> and </TEXT> tags.
     """
-    text = get_form_with_header(file_path)
+    text = get_form_with_header(file_path, encoding=encoding, errors=errors)
     if not text:
         return ''
 
