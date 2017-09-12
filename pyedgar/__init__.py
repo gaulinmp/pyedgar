@@ -23,10 +23,11 @@ from .utilities import edgarweb
 from .utilities import forms
 from .utilities import localstore
 from .utilities import plaintext
+# from . import downloader
 
 from .exceptions import (InputTypeError, WrongFormType,
                          NoFormTypeFound, NoCIKFound)
 
 
-__all__ = [edgarweb, forms, localstore, plaintext,
-           InputTypeError, WrongFormType, NoFormTypeFound, NoCIKFound]
+# __all__ = [edgarweb, forms, localstore, plaintext, #downloader,
+#            InputTypeError, WrongFormType, NoFormTypeFound, NoCIKFound]
