@@ -8,6 +8,10 @@ Probably only works on Linux.
 EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 EDGAR FTP specification: https://www.sec.gov/edgar/searchedgar/ftpusers.htm
 
+URL Change in 2016:
+  <2016 ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
+  >2016 http URL: https://www.sec.gov/Archives/edgar/data/2098/0000002098-96-000003.txt
+
 COPYRIGHT: MIT
 """
 
@@ -16,7 +20,13 @@ import re
 import tarfile
 import logging
 import datetime as dt
-from ftplib import FTP, all_errors
+import requests
+
+try:
+    from tqdm import tqdm
+except ModuleNotFoundError:
+    def tqdm(x,*args, **kqargs):
+        return x
 
 from .exceptions import *
 from .utilities import localstore
@@ -66,7 +76,6 @@ class EDGARDownloader(object):
     # Keep these secret. Keep them safe.
     _path_formatter = None
     _cache_daily_feed = True
-    _ftp = None
 
     __logger = logging.getLogger(__name__)
 
@@ -85,14 +94,6 @@ class EDGARDownloader(object):
         if keep_form_type_regex is None:
             # Default to 10s, 8s, 13s, and Def 14As.
             self.keep_regex = re.compile(r'10-[KQ]|8-K|13[FDG]|(?:14A$)')
-
-    def _login(self):
-        try:
-            self._ftp.close()
-        except:
-            # Squash all errors!
-            pass
-        self._ftp = FTP(host='ftp.sec.gov', user='anonymous', passwd=self.email)
 
     def _handle_nc(self, file_or_str):
         """
@@ -127,7 +128,7 @@ class EDGARDownloader(object):
 
         return ret_val
 
-    def download_from_ftp(self, ftp_path, local_target):
+    def download_from_server(self, remote_path, local_target, chunk_size=2 * 1024**2):
         """Download a daily feed tar given a datetime input."""
         if not os.path.exists(os.path.dirname(local_target)):
             raise FileNotFoundError('The directory does not exist: {}'
@@ -136,50 +137,56 @@ class EDGARDownloader(object):
         # If it fails, try, try, try, try again. Then stop; accept failure.
         for retries in range(5):
             try:
-                self._ftp.sendcmd("TYPE i")    # Switch to Binary mode
-                exp_size = self._ftp.size(ftp_path)  # Get size of file
-            except all_errors:                 # file doesn't exist, skip.
-                return ''
-            except AttributeError:             # self._ftp is None. Login and retry.
-                self._login()
-                continue
+                # Be ready to catch internet errors
+                with requests.get('https://www.sec.gov/Archives{}'.format(remote_path), stream=True) as response:
+                    if response.status_code // 100 == 4:
+                        # No such file
+                        return ""
+                    expected_len = int(response.headers['content-length'])
 
-            if os.path.exists(local_target):
-                size_ratio = exp_size/(os.path.getsize(local_target) + 1e-12)
-                if .99 < size_ratio < 1.01:
-                    self.__logger.info("Already downloaded {}".format(local_target))
-                    break
-                else:
-                    self.__logger.info("Found file, but wrong size. FTP:{}, Local:{}. Ratio {}."
-                                       .format(exp_size, os.path.getsize(local_target), size_ratio))
+                    if (os.path.exists(local_target) and
+                        expected_len - os.path.getsize(local_target) < 1000):
+                        # Then we already have it downloaded.
+                        self.__logger.info("Already downloaded file (remote {}, local {}) from {} to {} "
+                                      .format(expected_len,
+                                              os.path.getsize(local_target),
+                                              remote_path, local_target))
+                        return local_target
 
-            with open(local_target, 'wb') as fh:
-                self.__logger.info("Downloading {} to {}".format(ftp_path, local_target))
-                try:
-                    self._ftp.retrbinary("RETR " + ftp_path, fh.write)
-                except IOError:
-                    # Soemtimes FTP logs us out or times our or something.
-                    # Start again from the top, wot wot.
-                    self._login()
-                    continue
-                else:
+                    self.__logger.info("Downloading file (len {}) from {} to {} "
+                                  .format(expected_len, remote_path, local_target))
+
+                    with open(local_target, 'wb') as fh:
+                        self.__logger.info("Saving {} to {}".format(remote_path, local_target))
+
+                        for chunk in tqdm(response.iter_content(chunk_size=chunk_size),
+                                          total=expected_len//chunk_size,
+                                          unit_scale=chunk_size,
+                                          desc=os.path.basename(local_target)):
+                            if chunk:  # filter out keep-alive new chunks
+                                fh.write(chunk)
+                    self.__logger.info("Done saving (len: {}) {}".format(os.path.getsize(local_target), local_target))
                     break
+            except requests.RequestException:
+                # An internet fail occured, try again
+                pass
+
         return local_target
 
     def download_daily_feed(self, dl_date):
         """Download a daily feed tar given a datetime input."""
-        sec_path = edgarweb.get_feed_ftp_path(dl_date)
+        sec_path = edgarweb.get_feed_path(dl_date)
         tmp_filename = self._path_formatter.get_feed_filename(dl_date)
 
-        return self.download_from_ftp(sec_path, tmp_filename)
+        return self.download_from_server(sec_path, tmp_filename)
 
     def download_daily_index(self, dl_date):
         """Download a daily feed tar given a datetime input."""
         # For now, get the IDX file, not the zipped file. Because laziness and edu internet.
-        sec_path = edgarweb.get_idx_ftp_path(dl_date)
+        sec_path = edgarweb.get_idx_path(dl_date)
         tmp_filename = self._path_formatter.get_index_filename(dl_date)
 
-        return self.download_from_ftp(sec_path, tmp_filename)
+        return self.download_from_server(sec_path, tmp_filename)
 
     def iter_daily_feeds(self, from_date, to_date=None):
         """
@@ -268,14 +275,12 @@ class EDGARDownloader(object):
                     pass
 
 # Example running script. This will download past 3 months of forms and all indices.
+# run with ```python -m pyedgar.downloader```
 if __name__ == '__main__':
     import pandas as pd
     foo = EDGARDownloader()
+    foo.__logger.setLevel(logging.DEBUG)
     foo.email = 'mpg@rice.edu'
-
-    print("Downloading and extracting the last three months...", end='')
-    foo.extract_daily_feeds(dt.date.fromordinal(dt.date.today().toordinal()-90))
-    print(" Done!")
 
     print("Downloading the quarterly indices...", end='')
     df = pd.DataFrame()
@@ -285,7 +290,7 @@ if __name__ == '__main__':
             f = foo.download_daily_index(d)
             if not f:
                 continue
-            dfi = pd.read_csv(f, sep='|', skiprows=[0,1,2,3,4,5,6,7,9], encoding='latin-1')
+            dfi = pd.read_csv(f, sep='|', skiprows=[0,1,2,3,4,5,6,7,8,10], encoding='latin-1')
             dfi['Accession'] = dfi.Filename.apply(lambda x: x.split('/')[-1][:-4])
             del dfi['Filename']
 
@@ -305,4 +310,8 @@ if __name__ == '__main__':
            .sort_values(['CIK','Date Filed'])
            .to_csv(os.path.join(localstore.INDEX_ROOT, 'form_{}.tab'.format(form)),
                    sep='\t', index=False))
+    print(" Done!")
+
+    print("Downloading and extracting the last three months...", end='')
+    foo.extract_daily_feeds(dt.date.fromordinal(dt.date.today().toordinal()-90))
     print(" Done!")

@@ -6,7 +6,8 @@ Utilities for general EDGAR website and ftp tasks.
 index URL: http://www.sec.gov/Archives/edgar/data/2098/0001026608-05-000015-index.htm
 complete submission URL: http://www.sec.gov/Archives/edgar/data/2098/000102660805000015/0001026608-05-000015.txt
 Exhibit/form URL: http://www.sec.gov/Archives/edgar/data/2098/000102660815000007/acu_10k123114.htm
-ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
+<2016 ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
+>2016 http URL: https://www.sec.gov/Archives/edgar/data/2098/0000002098-96-000003.txt
 
 EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 
@@ -35,13 +36,13 @@ def parse_url(url):
     return None, None
 
 def get_edgar_urls(cik, accession=None):
-    """Generage URLs for EDGAR FTP and HTTP sites.
+    """Generage URLs for EDGAR 'bulk download' and 'user facing' sites.
     `cik` parameter can be object with `cik` and `accession` attributes or keys.
 
     :param string,object cik: String CIK, or object with cik and accession attributes or keys.
     :param string accession: String ACCESSION number, or None if accession in CIK object.
 
-    :return: Tuple of strings in the form (ftp url, http url)
+    :return: Tuple of strings in the form (bulk DL url, user website url)
     :rtype: tuple (string, string)
     """
     if hasattr(cik, 'cik') and hasattr(cik, 'accession'): # cik is callable.
@@ -51,11 +52,12 @@ def get_edgar_urls(cik, accession=None):
         accession = cik.get('accession') if not accession else accession
         cik = cik.get('cik')
 
-    return ('ftp://ftp.sec.gov/edgar/data/{}/{}.txt'.format(cik, accession),
+    # Before FPT change: ftp://ftp.sec.gov/edgar/
+    return ('https://www.sec.gov/Archives/edgar/data/{}/{}.txt'.format(cik, accession),
             'http://www.sec.gov/Archives/edgar/data/{}/{}-index.htm'.format(cik, accession))
 
 def edgar_links(cik, accession=None):
-    """Generage HTML encoded links (using `a` tag) to EDGAR FTP and HTTP sites.
+    """Generage HTML encoded links (using `a` tag) to EDGAR 'bulk download' and 'user facing' sites.
     `cik` parameter can be object with `cik` and `accession` attributes or keys.
 
     :param string,object cik: String CIK, or object with cik and accession attributes or keys.
@@ -66,7 +68,7 @@ def edgar_links(cik, accession=None):
     """
     urls = get_edgar_urls(cik, accession=accession)
 
-    return ("<a href='{}' target=_blank>FTP</a><a href='{}' target=_blank>HTML</a>"
+    return ("<a href='{}' target=_blank>Raw</a> <a href='{}' target=_blank>Web</a>"
             .format(*urls))
 
 def _get_qtr(datetime_in):
@@ -83,14 +85,14 @@ def _get_qtr(datetime_in):
     except:
         raise
 
-def get_feed_ftp_path(date):
-    """Get FTP path to daily feed gzip file."""
+def get_feed_path(date):
+    """Get URL path to daily feed gzip file."""
     feed_path = "/edgar/Feed/{0:%Y}/QTR{1}/{0:%Y%m%d}.nc.tar.gz"
     return feed_path.format(date, _get_qtr(date))
 
-def get_idx_ftp_path(date_or_year, quarter=None, tar=False):
+def get_idx_path(date_or_year, quarter=None, tar=False):
     """
-    Get FTP path to quarterly index file. Don't feed it a year and no quarter.
+    Get URL path to quarterly index file. Don't feed it a year and no quarter.
     """
     if quarter is None:
         quarter = _get_qtr(date_or_year)
