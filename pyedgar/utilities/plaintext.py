@@ -22,8 +22,12 @@ _re_nls = re.compile(r'[\n\r]+')
 _re_number = re.compile(r'\b[\'"$-]*[\d.][\d.,]*\b')
 
 def find_newlines(text, pos=0, endpos=-1):
+    """
+    Returns the list of the position of the _last_ set of newlines in a
+    consecutive group. Includes the character at endposition. 
+    """
     if endpos <= pos:
-        endpos = len(txt)
+        endpos = len(text)
     return list(x.end() for x in _re_nls.finditer(text, pos=pos, endpos=endpos))
 
 
