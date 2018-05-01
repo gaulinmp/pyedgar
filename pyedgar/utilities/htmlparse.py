@@ -1,9 +1,10 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 """
 Module for parsing HTML files.
 
-COPYRIGHT: MIT
+:copyright: © 2018 by Mac Gaulin
+:license: MIT, see LICENSE for more details.
 """
 
 import re
@@ -55,7 +56,7 @@ def convert_html_to_text(html_string, unwrap=True, document_width=150, force=Fal
         pass
 
     if output[-1]:
-        log.warning(output[-1])
+        __logger.warning(output[-1])
 
     if unwrap:
         return plaintext.unwrap_plaintext(output[0].decode(), document_width)

@@ -1,11 +1,11 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 General utilities for interacting with plaintext documents.
 
 EDGAR document specification details: https://www.sec.gov/info/edgar/pdsdissemspec051310.pdf
 
-COPYRIGHT: MIT
+:copyright: © 2018 by Mac Gaulin
+:license: MIT, see LICENSE for more details.
 """
 
 import re

@@ -1,9 +1,9 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Exceptions for the project.
 
-COPYRIGHT: MIT
+:copyright: © 2018 by Mac Gaulin
+:license: MIT, see LICENSE for more details.
 """
 
 class InputTypeError(Exception):

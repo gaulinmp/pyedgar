@@ -1,9 +1,9 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Utilities for interacting with edgar forms.
 
-COPYRIGHT: MIT
+:copyright: © 2018 by Mac Gaulin
+:license: MIT, see LICENSE for more details.
 """
 
 # import os

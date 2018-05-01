@@ -1,9 +1,9 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Utilities for general EDGAR website tasks.
 
-COPYRIGHT: MIT
+:copyright: © 2018 by Mac Gaulin
+:license: MIT, see LICENSE for more details.
 """
 import os
 import re
@@ -27,6 +27,9 @@ def get_filing_path(cik, accession):
     :return: Full path to local filing document.
     :rtype: string
     """
+    if not cik or not accession:
+        raise ValueError("Requires non-missing CIK({}) and Accession({})"
+                         .format(cik, accession))
     try:
         cik_full = "{:010d}".format(int(cik))
     except ValueError:

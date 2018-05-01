@@ -12,10 +12,12 @@ URL Change in 2016:
   <2016 ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
   >2016 http URL: https://www.sec.gov/Archives/edgar/data/2098/0000002098-96-000003.txt
 
-COPYRIGHT: MIT
+:copyright: © 2018 by Mac Gaulin
+:license: MIT, see LICENSE for more details.
 """
 
 import os
+import sys
 import re
 import tarfile
 import logging
@@ -28,7 +30,8 @@ except ModuleNotFoundError:
     def tqdm(x,*args, **kqargs):
         return x
 
-from .exceptions import *
+from .exceptions import (InputTypeError, WrongFormType,
+                         NoFormTypeFound, NoCIKFound)
 from .utilities import localstore
 from .utilities import forms
 from .utilities import edgarweb
@@ -77,7 +80,7 @@ class EDGARDownloader(object):
     _path_formatter = None
     _cache_daily_feed = True
 
-    __logger = logging.getLogger(__name__)
+    _logger = logging.getLogger(__name__)
 
     def __init__(self,
                  path_formatter=None,
@@ -110,7 +113,11 @@ class EDGARDownloader(object):
         if not txt:
             raise InputTypeError("No text of file object found")
 
-        txt = txt.decode(self.EDGAR_ENCODING) #uuuuuuuuuuunicode
+        try:
+            txt = txt.decode(self.EDGAR_ENCODING) #uuuuuuuuuuunicode
+        except UnicodeDecodeError:
+            self._logger.error("UNICODE ERROR: %r", txt)
+            txt = txt.decode(self.EDGAR_ENCODING, errors='ignore') #uuuuuuuuuuunicode
 
         ret_val = {'form_type': forms.get_header(txt, "FORM-TYPE"),
                    'cik': forms.get_header(txt, "CIK"),
@@ -128,7 +135,7 @@ class EDGARDownloader(object):
 
         return ret_val
 
-    def download_from_server(self, remote_path, local_target, chunk_size=2 * 1024**2):
+    def download_from_server(self, remote_path, local_target, chunk_size=1024**2):
         """Download a daily feed tar given a datetime input."""
         if not os.path.exists(os.path.dirname(local_target)):
             raise FileNotFoundError('The directory does not exist: {}'
@@ -147,28 +154,31 @@ class EDGARDownloader(object):
                     if (os.path.exists(local_target) and
                         expected_len - os.path.getsize(local_target) < 1000):
                         # Then we already have it downloaded.
-                        self.__logger.info("Already downloaded file (remote {}, local {}) from {} to {} "
+                        self._logger.info("Already downloaded file (remote {}, local {}) from {} to {} "
                                       .format(expected_len,
                                               os.path.getsize(local_target),
                                               remote_path, local_target))
                         return local_target
 
-                    self.__logger.info("Downloading file (len {}) from {} to {} "
+                    self._logger.info("Downloading file (len {}) from {} to {} "
                                   .format(expected_len, remote_path, local_target))
 
                     with open(local_target, 'wb') as fh:
-                        self.__logger.info("Saving {} to {}".format(remote_path, local_target))
-
+                        self._logger.info("Saving {} to {}".format(remote_path, local_target))
                         for chunk in tqdm(response.iter_content(chunk_size=chunk_size),
                                           total=expected_len//chunk_size,
-                                          unit_scale=chunk_size,
+                                          unit="Mb",
                                           desc=os.path.basename(local_target)):
                             if chunk:  # filter out keep-alive new chunks
                                 fh.write(chunk)
-                    self.__logger.info("Done saving (len: {}) {}".format(os.path.getsize(local_target), local_target))
+                    self._logger.info("Done saving (len: {}) {}".format(os.path.getsize(local_target), local_target))
                     break
-            except requests.RequestException:
+            except KeyboardInterrupt:
+                raise
+            # except requests.RequestException:
+            except ImportError:
                 # An internet fail occured, try again
+                print("Error raised in downloading :", sys.exc_info()[0])
                 pass
 
         return local_target
@@ -213,11 +223,11 @@ class EDGARDownloader(object):
                 continue
 
             if not os.path.exists(feed_path):
-                self.__logger.error("Failed to download {} file to {}."
+                self._logger.error("Failed to download {} file to {}."
                                     .format(i_date, feed_path))
                 continue
 
-            self.__logger.debug("Done with {:%Y-%m-%d}, size is {:4.2f} MB"
+            self._logger.debug("Done with {:%Y-%m-%d}, size is {:4.2f} MB"
                                 .format(i_date, os.path.getsize(feed_path)/1024**2))
 
             with tarfile.open(feed_path, 'r') as tar:
@@ -233,23 +243,23 @@ class EDGARDownloader(object):
                     try:
                         nc_dict = self._handle_nc(nc_file)
                     except InputTypeError:
-                        self.__logger.warning("Not a file or string at {} on {}"
+                        self._logger.warning("Not a file or string at {} on {}"
                                               .format(tarinfo.name, i_date))
                         continue
                     except NoCIKFound:
                         if ".corr" not in tarinfo.name:
-                            self.__logger.warning("No CIK found at {} on {}"
+                            self._logger.warning("No CIK found at {} on {}"
                                                   .format(tarinfo.name, i_date))
                         continue
                     except NoFormTypeFound:
                         if ".corr" not in tarinfo.name:
-                            self.__logger.warning("No FormType found at {} on {}"
+                            self._logger.warning("No FormType found at {} on {}"
                                                   .format(tarinfo.name, i_date))
                         continue
                     except WrongFormType:
                         continue
                     if not nc_dict:
-                        self.__logger.error("Handling nc file {} on {} passed exceptions"
+                        self._logger.error("Handling nc file {} on {} passed exceptions"
                                             .format(tarinfo.name, i_date))
                         continue
                     # Get local nc file path. Accession is nc file filename.
@@ -265,7 +275,7 @@ class EDGARDownloader(object):
 
             # Log progress on the first of the month.
             if i_date.isoweekday() == 1:
-                self.__logger.info("Finished adding {} out of {} from {}"
+                self._logger.info("Finished adding {} out of {} from {}"
                 .format(i_done, i_tot, i_date))
 
             if not self._cache_daily_feed:
@@ -279,9 +289,13 @@ class EDGARDownloader(object):
 if __name__ == '__main__':
     import pandas as pd
     foo = EDGARDownloader()
-    foo.__logger.setLevel(logging.DEBUG)
-    foo.email = 'mpg@rice.edu'
+    foo._logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    foo._logger.addHandler(ch)
 
+    foo.email = 'mpg@rice.edu'
+    
     print("Downloading the quarterly indices...", end='')
     df = pd.DataFrame()
     for y in range(1995, dt.date.today().year + 1):
@@ -303,6 +317,7 @@ if __name__ == '__main__':
         '10-K': [x for x in all_forms if '10-K' in x and 'NT' not in x],
         '10-Q': [x for x in all_forms if '10-Q' in x and 'NT' not in x],
         'DEF14A':  [x for x in all_forms if x.endswith('14A')],
+        '13s':  [x for x in all_forms if 'SC 13' in x or '13F' in x],
         '8-K': '8-K 8-K/A'.split(),
     }
     for form,formlist in save_forms.items():
@@ -311,7 +326,7 @@ if __name__ == '__main__':
            .to_csv(os.path.join(localstore.INDEX_ROOT, 'form_{}.tab'.format(form)),
                    sep='\t', index=False))
     print(" Done!")
-
+    
     print("Downloading and extracting the last three months...", end='')
     foo.extract_daily_feeds(dt.date.fromordinal(dt.date.today().toordinal()-90))
     print(" Done!")

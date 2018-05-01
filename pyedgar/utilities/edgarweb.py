@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Utilities for general EDGAR website and ftp tasks.
@@ -6,12 +5,15 @@ Utilities for general EDGAR website and ftp tasks.
 index URL: http://www.sec.gov/Archives/edgar/data/2098/0001026608-05-000015-index.htm
 complete submission URL: http://www.sec.gov/Archives/edgar/data/2098/000102660805000015/0001026608-05-000015.txt
 Exhibit/form URL: http://www.sec.gov/Archives/edgar/data/2098/000102660815000007/acu_10k123114.htm
+
+EDGAR FTP change in 2016:
 <2016 ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
 >2016 http URL: https://www.sec.gov/Archives/edgar/data/2098/0000002098-96-000003.txt
 
 EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 
-COPYRIGHT: MIT
+:copyright: © 2018 by Mac Gaulin
+:license: MIT, see LICENSE for more details.
 """
 import re
 # import datetime as dt

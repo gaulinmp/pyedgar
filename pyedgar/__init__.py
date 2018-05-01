@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """
@@ -8,26 +7,28 @@ pyEDGAR SEC data library.
 pyEDGAR is a general purpose library for all sorts of interactions with the SEC
 data sources, primarily the EDGAR distribution system.
 
-Files from the SEC reside at ftp://ftp.sec.gov/edgar/
+Files from the SEC reside at https://www.sec.gov/Archives/edgar/data/CIK/ACCESSION.txt
 
-COPYRIGHT: MIT
+:copyright: © 2018 by Mac Gaulin
+:license: MIT, see LICENSE for more details.
 """
 
 __title__ = 'pyedgar'
-__version__ = '0.0.2a1'
+__version__ = '0.0.3a1'
 __author__ = 'Mac Gaulin'
 __license__ = 'MIT'
-__copyright__ = 'Copyright 2015 Mac Gaulin'
+__copyright__ = 'Copyright 2018 Mac Gaulin'
 
-from .utilities import edgarweb
-from .utilities import forms
-from .utilities import localstore
-from .utilities import plaintext
-# from . import downloader
 
+# Include top level modules
+from . import filing
+from . import downloader
+
+# Include sub-modules
+from . import utilities
+from . import exceptions
 from .exceptions import (InputTypeError, WrongFormType,
                          NoFormTypeFound, NoCIKFound)
-
 
 # __all__ = [edgarweb, forms, localstore, plaintext, #downloader,
 #            InputTypeError, WrongFormType, NoFormTypeFound, NoCIKFound]
