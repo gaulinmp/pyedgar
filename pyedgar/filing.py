@@ -126,7 +126,7 @@ class Filing(object):
             except FileNotFoundError:
                 msg = ("Filing not found for CIK:{} / Accession:{}"
                        .format(self._cik, self._accession))
-                self.__log.error(msg)
+                self.__log.debug(msg)
                 raise FileNotFoundError(msg)
 
         return self._full_text
@@ -136,7 +136,7 @@ class Filing(object):
         Load the full set of headers of the filing at cik/accession into memory.
         """
         if not self.full_text:
-            self.__log.warning("Full filing text missing or not found!")
+            self.__log.debug("Full filing text missing or not found!")
             return None
         if set_flat:
             self._headers = forms.get_all_headers_flat(self.full_text)
@@ -152,7 +152,7 @@ class Filing(object):
         Full text of the documents resides at documents[i]['full_text'].
         """
         if not self.full_text:
-            self.__log.warning("Full filing text missing or not found!")
+            self.__log.debug("Full filing text missing or not found!")
             return None
         self._documents = forms.chunk_filing(self.full_text)
 
