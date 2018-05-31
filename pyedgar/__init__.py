@@ -14,15 +14,11 @@ Files from the SEC reside at https://www.sec.gov/Archives/edgar/data/CIK/ACCESSI
 """
 
 __title__ = 'pyedgar'
-__version__ = '0.0.3a1'
+__version__ = '0.0.4a1'
 __author__ = 'Mac Gaulin'
 __license__ = 'MIT'
 __copyright__ = 'Copyright 2018 Mac Gaulin'
 
-
-# Include top level modules
-from . import filing
-from . import downloader
 
 # Include sub-modules
 from . import utilities
