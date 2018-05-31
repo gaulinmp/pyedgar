@@ -142,13 +142,14 @@ class EDGARDownloader(object):
                                     .format(os.path.dirname(local_target)))
 
         # If it fails, try, try, try, try again. Then stop; accept failure.
-        for retries in range(5):
+        for _ in range(5):
             try:
                 # Be ready to catch internet errors
                 with requests.get('https://www.sec.gov/Archives{}'.format(remote_path), stream=True) as response:
                     if response.status_code // 100 == 4:
                         # No such file
                         return ""
+
                     expected_len = int(response.headers['content-length'])
 
                     if (os.path.exists(local_target) and
@@ -286,17 +287,26 @@ class EDGARDownloader(object):
 
 # Example running script. This will download past 3 months of forms and all indices.
 # run with ```python -m pyedgar.downloader```
-if __name__ == '__main__':
+def main(start_date=None, get_indices=True, get_files=True):
     import pandas as pd
+
     foo = EDGARDownloader()
     foo._logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
     foo._logger.addHandler(ch)
 
-    foo.email = 'mpg@rice.edu'
-    
-    print("Downloading the quarterly indices...", end='')
+    if get_files:
+        if start_date is None:
+            start_date = dt.date.fromordinal(dt.date.today().toordinal()-90)
+        print("Downloading and extracting since {:%Y-%m-%d}...".format(start_date))
+        foo.extract_daily_feeds(start_date)
+        print(" Done!")
+
+    if not get_indices:
+        return
+
+    print("Downloading the quarterly indices...")
     df = pd.DataFrame()
     for y in range(1995, dt.date.today().year + 1):
         for q in range(4):
@@ -326,7 +336,29 @@ if __name__ == '__main__':
            .to_csv(os.path.join(localstore.INDEX_ROOT, 'form_{}.tab'.format(form)),
                    sep='\t', index=False))
     print(" Done!")
-    
-    print("Downloading and extracting the last three months...", end='')
-    foo.extract_daily_feeds(dt.date.fromordinal(dt.date.today().toordinal()-90))
-    print(" Done!")
+
+
+if __name__ == '__main__':
+    from argparse import ArgumentParser
+
+    argp = ArgumentParser(description='Downloader for pyedgar, downloads past'
+                                      ' 3 months (or since DATE) of forms and'
+                                      ' all indices (unless -f or -i flags'
+                                      ' respectively are set).')
+
+    argp.add_argument('-d', '--start-date', nargs='?', default=None,
+                      dest='start_date', metavar='YYYY-MM-DD',
+                      type=lambda s: dt.datetime.strptime(s, "%Y-%m-%d"),
+                      help='An optional date of form YYYY-MM-DD to start '
+                           'downloading indices from')
+
+    argp.add_argument('-i', '--no-indices', action='store_false', dest='get_indices',
+                      help='Do not download and update indices.')
+    argp.add_argument('-f', '--no-files', action='store_false', dest='get_files',
+                      help='Do not download and extract daily feed files.')
+
+    args = argp.parse_args()
+
+    main(start_date=args.start_date,
+         get_indices=args.get_indices,
+         get_files=args.get_files)
