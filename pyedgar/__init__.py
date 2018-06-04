@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 """
 pyEDGAR SEC data library.
 =====================================
@@ -23,8 +22,8 @@ __copyright__ = 'Copyright 2018 Mac Gaulin'
 # Include sub-modules
 from . import utilities
 from . import exceptions
-from .exceptions import (InputTypeError, WrongFormType,
-                         NoFormTypeFound, NoCIKFound)
+# from .exceptions import (InputTypeError, WrongFormType,
+#                          NoFormTypeFound, NoCIKFound)
 
 # __all__ = [edgarweb, forms, localstore, plaintext, #downloader,
 #            InputTypeError, WrongFormType, NoFormTypeFound, NoCIKFound]
