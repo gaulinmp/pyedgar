@@ -114,9 +114,10 @@ def get_form(file_path, encoding=None, errors=None):
     """
     Reads file at file_path and returns form between <TEXT> and </TEXT> tags.
     """
-    text = get_form_with_header(file_path, encoding=encoding, errors=errors)
-    if not text:
+    form_dict = get_form_with_header(file_path, encoding=encoding, errors=errors)
+    if not form_dict or 'text' not in form_dict:
         return ''
+    text = form_dict['text']
 
     st = RE_TEXT_TAG_OPEN.search(text)
     if not st:
