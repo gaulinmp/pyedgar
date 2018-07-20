@@ -135,52 +135,124 @@ class EDGARDownloader(object):
 
         return ret_val
 
-    def download_from_server(self, remote_path, local_target, chunk_size=1024**2):
-        """Download a daily feed tar given a datetime input."""
+    def download_tar(self, remote_path, local_target, chunk_size=1024**2):
+        """Download a file from `remote_path` to `local_target`."""
+        from_addr = ('https://www.sec.gov/Archives{remote_path}'
+                     .format(remote_path=remote_path))
+
+        # Verify destination directory exists
         if not os.path.exists(os.path.dirname(local_target)):
             raise FileNotFoundError('The directory does not exist: {}'
                                     .format(os.path.dirname(local_target)))
 
         # If it fails, try, try, try, try again. Then stop; accept failure.
-        for _ in range(5):
+        for n_retries in range(5):
+            self._logger.info(("Downloading {n_retries} of 5: "
+                               "{remote_path} to {local_target}")
+                              .format(n_retries=n_retries,
+                                      remote_path=remote_path,
+                                      local_target=local_target))
+
+            # Check for local copy and determine length (for caching/resuming)
             try:
-                # Be ready to catch internet errors
-                with requests.get('https://www.sec.gov/Archives{}'.format(remote_path), stream=True) as response:
-                    if response.status_code // 100 == 4:
-                        # No such file
-                        return ""
+                loc_size = os.path.getsize(local_target)
+                headers = {'Range': 'bytes={loc_size}-'.format(loc_size=loc_size)}
+                # Resume with header: Range: bytes=StartPos- (implicit end pos)
+            except FileNotFoundError:
+                loc_size = 0
+                headers = None
 
-                    expected_len = int(response.headers['content-length'])
+            # Check total file length on server
+            with requests.get(from_addr, stream=True) as response:
+                if response.status_code // 100 == 4:
+                    # No such file
+                    return None
+                expected_tot_len = int(response.headers['content-length'])
 
-                    if (os.path.exists(local_target) and
-                        expected_len - os.path.getsize(local_target) < 1000):
-                        # Then we already have it downloaded.
-                        self._logger.info("Already downloaded file (remote {}, local {}) from {} to {} "
-                                      .format(expected_len,
-                                              os.path.getsize(local_target),
-                                              remote_path, local_target))
-                        return local_target
+            # If local length matches, we are done. Return local path
+            if expected_tot_len == loc_size:
+                self._logger.info(("Already downloaded ({loc_size}=={expected_tot_len}) "
+                                   "from {remote_path} to {local_target}")
+                                  .format(loc_size=loc_size,
+                                          expected_tot_len=expected_tot_len,
+                                          remote_path=remote_path,
+                                          local_target=local_target))
+                return local_target
 
-                    self._logger.info("Downloading file (len {}) from {} to {} "
-                                  .format(expected_len, remote_path, local_target))
+            # Download or resume
+            with requests.get(from_addr, headers=headers, stream=True) as response:
+                expected_len = int(response.headers['content-length'])
 
-                    with open(local_target, 'wb') as fh:
-                        self._logger.info("Saving {} to {}".format(remote_path, local_target))
-                        for chunk in tqdm(response.iter_content(chunk_size=chunk_size),
-                                          total=expected_len//chunk_size,
-                                          unit="Mb",
-                                          desc=os.path.basename(local_target)):
-                            if chunk:  # filter out keep-alive new chunks
-                                fh.write(chunk)
-                    self._logger.info("Done saving (len: {}) {}".format(os.path.getsize(local_target), local_target))
-                    break
-            except KeyboardInterrupt:
-                raise
-            # except requests.RequestException:
-            except ImportError:
-                # An internet fail occured, try again
-                print("Error raised in downloading :", sys.exc_info()[0])
-                pass
+                if loc_size:
+                    self._logger.info(("Already downloaded ({loc_size}/"
+                                        "{expected_tot_len}, remaining:"
+                                        "{expected_len}) from {remote_path} "
+                                        "to {local_target}")
+                                        .format(loc_size=loc_size,
+                                                expected_tot_len=expected_tot_len,
+                                                expected_len=expected_len,
+                                                remote_path=remote_path,
+                                                local_target=local_target))
+
+                with open(local_target, 'ab' if loc_size else 'wb') as fh:
+                    self._logger.info("Saving tar {} to {}"
+                                      .format(remote_path, local_target))
+
+                    for chunk in tqdm(response.iter_content(chunk_size=chunk_size),
+                                      total=expected_len//chunk_size,
+                                      unit="Mb",
+                                      desc=os.path.basename(local_target)):
+                        if chunk:  # filter out keep-alive new chunks
+                            fh.write(chunk)
+
+                    self._logger.info("Done saving (len: {}) {}"
+                                      .format(os.path.getsize(local_target),
+                                              local_target))
+
+                    break  # Done downloading, break out of range(5)
+
+        return local_target
+
+    def download_plaintext(self, remote_path, local_target, chunk_size=1024**2):
+        """Download a plaintext file from `remote_path` to `local_target`."""
+        from_addr = ('https://www.sec.gov/Archives{remote_path}'
+                     .format(remote_path=remote_path))
+
+        # Return if exists. Delete if it is partial?
+        if os.path.exists(local_target):
+            return local_target
+
+        # Verify destination directory exists
+        if not os.path.exists(os.path.dirname(local_target)):
+            raise FileNotFoundError('The directory does not exist: {}'
+                                    .format(os.path.dirname(local_target)))
+
+        self._logger.info(("Downloading plaintext: "
+                            "{remote_path} to {local_target}")
+                            .format(remote_path=remote_path,
+                                    local_target=local_target))
+
+        # Check total file length on server
+        with requests.get(from_addr, stream=True) as response:
+            if response.status_code // 100 == 4:
+                # No such file
+                return None
+            expected_tot_len = int(response.headers.get('content-length', 10 * 1024**2))
+
+            with open(local_target, 'wb') as fh:
+                self._logger.info("Saving plaintext {} to {}"
+                                    .format(remote_path, local_target))
+
+                for chunk in tqdm(response.iter_content(chunk_size=chunk_size),
+                                    total=expected_tot_len//chunk_size,
+                                    unit="Mb",
+                                    desc=os.path.basename(local_target)):
+                    if chunk:  # filter out keep-alive new chunks
+                        fh.write(chunk)
+
+                self._logger.info("Done saving (len: {}) {}"
+                                    .format(os.path.getsize(local_target),
+                                            local_target))
 
         return local_target
 
@@ -189,15 +261,15 @@ class EDGARDownloader(object):
         sec_path = edgarweb.get_feed_path(dl_date)
         tmp_filename = self._path_formatter.get_feed_filename(dl_date)
 
-        return self.download_from_server(sec_path, tmp_filename)
+        return self.download_tar(sec_path, tmp_filename)
 
     def download_daily_index(self, dl_date):
-        """Download a daily feed tar given a datetime input."""
+        """Download a quarterly index given a datetime input."""
         # For now, get the IDX file, not the zipped file. Because laziness and edu internet.
         sec_path = edgarweb.get_idx_path(dl_date)
         tmp_filename = self._path_formatter.get_index_filename(dl_date)
 
-        return self.download_from_server(sec_path, tmp_filename)
+        return self.download_plaintext(sec_path, tmp_filename)
 
     def iter_daily_feeds(self, from_date, to_date=None):
         """
@@ -207,7 +279,7 @@ class EDGARDownloader(object):
             to_date = dt.date.today()
 
         for i_date in range(from_date.toordinal(), to_date.toordinal()):
-            i_date = dt.date.fromordinal(i_date-1)
+            i_date = dt.date.fromordinal(i_date)
 
             # Actually get the file. This downloads it, or passes the filepath to the cached file.
             yield i_date, self.download_daily_feed(i_date)
@@ -274,19 +346,18 @@ class EDGARDownloader(object):
                     with open(nc_out_path, 'w', encoding=self.EDGAR_ENCODING) as fh:
                         fh.write(nc_dict['doc'])
 
-            # Log progress on the first of the month.
-            if i_date.isoweekday() == 1:
-                self._logger.info("Finished adding {} out of {} from {}"
-                .format(i_done, i_tot, i_date))
+            # Log progress after each tar file is done
+            self._logger.info("Finished adding {} out of {} from {}"
+            .format(i_done, i_tot, i_date))
 
             if not self._cache_daily_feed:
-                try: # cleanup after 14 days
+                try:
                     os.remove(feed_path)
                 except:
                     pass
 
-# Example running script. This will download past 3 months of forms and all indices.
-# run with ```python -m pyedgar.downloader```
+# Example running script. This will download past 30 days of forms and all indices.
+# run with ```python -m pyedgar.downloader --help```
 def main(start_date=None, get_indices=True, get_files=True):
     import pandas as pd
 
@@ -298,7 +369,7 @@ def main(start_date=None, get_indices=True, get_files=True):
 
     if get_files:
         if start_date is None:
-            start_date = dt.date.fromordinal(dt.date.today().toordinal()-90)
+            start_date = dt.date.fromordinal(dt.date.today().toordinal()-30)
         print("Downloading and extracting since {:%Y-%m-%d}...".format(start_date))
         foo.extract_daily_feeds(start_date)
         print(" Done!")
@@ -342,7 +413,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
 
     argp = ArgumentParser(description='Downloader for pyedgar, downloads past'
-                                      ' 3 months (or since DATE) of forms and'
+                                      ' 30 days (or since DATE) of forms and'
                                       ' all indices (unless -f or -i flags'
                                       ' respectively are set).')
 
