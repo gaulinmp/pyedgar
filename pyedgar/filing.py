@@ -12,6 +12,7 @@ import logging
 
 from .utilities import edgarweb
 from .utilities import forms
+from .utilities.forms import FORMS
 from .utilities import localstore
 
 class Filing(object):
@@ -22,6 +23,9 @@ class Filing(object):
     # Every form has a CIK and accession.
     _cik = None
     _accession = None
+    # Set the form type, with some family hierarchy: 10s, Def 14s, etc.
+    _type = None
+    _type_exact = None
     # Paths to local and remote filing. Set lazily.
     _filing_local_path = None
     _filing_url = None
@@ -52,6 +56,16 @@ class Filing(object):
 
         self._set_cik(cik)
         self._set_accession(accession)
+
+    def __repr__(self):
+        return ("<EDGAR filing ({}/{}) Headers:{}, Text:{}, Documents:{}>"
+                .format(self.cik, self.accession,
+                        bool(self._headers),
+                        bool(self._full_text),
+                        bool(self._documents),))
+
+    def __str__(self):
+        return self.__repr__()
 
     def _set_cik(self, cik=None):
         """
@@ -145,6 +159,42 @@ class Filing(object):
 
         return self._headers
 
+    def _set_type(self):
+        """
+        Full text of the filing at cik/accession.
+        Lazily load the full text of the filing into memory.
+
+        Args: None
+
+        Returns:
+            String representing the full text of the EDGAR filing.
+
+        Raises:
+            FileNotFoundError: The file wasn't found in the local cache.
+        """
+        _t = self.headers.get('type', 'OTHER')
+        self._type_exact = _t
+
+        self._type = 'other'
+        if _t in ('3', '3/A'):
+            self._type = FORMS.FORM_3
+        elif _t in ('4', '4/A'):
+            self._type = FORMS.FORM_4
+        elif _t in ('8-K', '8-K/A'):
+            self._type = FORMS.FORM_8K
+        elif _t[:4] == '10-Q':
+            self._type = FORMS.FORM_10Q
+        elif _t[:4] == '10-Q':
+            self._type = FORMS.FORM_10K
+        elif _t.endswith('14A'):
+            self._type = FORMS.FORM_DEF14A
+        elif 'SC 13G' in _t:
+            self._type = FORMS.FORM_13G
+        elif 'SC 13D' in _t:
+            self._type = FORMS.FORM_13D
+        elif '13F-' in _t:
+            self._type = FORMS.FORM_13F
+
     def _set_documents(self):
         """
         Parse the full text of the filing and split it into the
@@ -198,6 +248,23 @@ class Filing(object):
         Lazily load the headers of the filing into memory.
         """
         return self._headers or self._set_headers()
+
+    @property
+    def type(self):
+        """
+        Generic type of the filing at cik/accession, from:
+        3, 4, 8-K, 10-K, 10-Q, DEF14A, 13G, 13D, 13F
+        Lazily load the headers of the filing into memory.
+        """
+        return self._type or self._set_type()
+
+    @property
+    def type_exact(self):
+        """
+        Exact TYPE header of the filing at cik/accession.
+        Lazily load the headers of the filing into memory.
+        """
+        return self._type or self._set_type()
 
     @property
     def documents(self):

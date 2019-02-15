@@ -47,12 +47,16 @@ def get_edgar_urls(cik, accession=None):
     :return: Tuple of strings in the form (bulk DL url, user website url)
     :rtype: tuple (string, string)
     """
-    if hasattr(cik, 'cik') and hasattr(cik, 'accession'): # cik is callable.
-        accession = cik.accession if not accession else accession
-        cik = cik.cik
-    elif hasattr(cik, 'get') and cik.get('cik', None) and cik.get('accession', None):
-        accession = cik.get('accession') if not accession else accession
-        cik = cik.get('cik')
+    if accession is None:
+        try: # cik has cik/acc attributes?
+            cik = cik.cik
+            accession = cik.accession if accession is None else accession
+        except AttributeError:
+            try: # cik is dict?
+                cik = cik.get('cik')
+                accession = cik.get('accession')
+            except AttributeError:
+                pass
 
     # Before FPT change: ftp://ftp.sec.gov/edgar/
     return ('https://www.sec.gov/Archives/edgar/data/{}/{}.txt'.format(cik, accession),
@@ -68,10 +72,8 @@ def edgar_links(cik, accession=None):
     :return: String of HTTP encoded links
     :rtype: string
     """
-    urls = get_edgar_urls(cik, accession=accession)
-
-    return ("<a href='{}' target=_blank>Raw</a> <a href='{}' target=_blank>Web</a>"
-            .format(*urls))
+    return ("<a href='{1}' target=_blank>Index</a> <a href='{0}' target=_blank>Raw</a>"
+            .format(*get_edgar_urls(cik, accession=accession)))
 
 def _get_qtr(datetime_in):
     """
@@ -82,10 +84,7 @@ def _get_qtr(datetime_in):
         return int((datetime_in.month-1)/3)+1
     except AttributeError:
         pass
-    try:
-        return int((datetime_in-1)/3)+1
-    except:
-        raise
+    return int((datetime_in-1)/3)+1
 
 def get_feed_path(date):
     """Get URL path to daily feed gzip file."""
@@ -103,5 +102,5 @@ def get_idx_path(date_or_year, quarter=None, tar=False):
     except AttributeError:
         # Then date_or_year is an integer. Leave it be.
         pass
-    idx_path = "/edgar/full-index/{0}/QTR{1}/master.idx{2}"
-    return idx_path.format(date_or_year, quarter, '.gz' if tar else '')
+    idx_path = "/edgar/full-index/{0}/QTR{1}/master.{2}"
+    return idx_path.format(date_or_year, quarter, 'gz' if tar else 'idx')

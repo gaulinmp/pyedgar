@@ -37,8 +37,6 @@ def get_full_filing(file_path, encoding=None, errors=None, buffering=None):
     """
     Returns full text of filing.
     """
-    global ENCODING_INPUT
-
     if not os.path.exists(file_path):
         raise FileNotFoundError("File {} does not exist.".format(file_path))
 
@@ -73,18 +71,18 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8,
             raise EDGARFilingFormatError
         # This is what I care about now. Could be changed to `get_all_headers`
         ret_dict = {'form_type': found_form.upper(),
-                   'name': get_header(text, "CONFORMED-NAME",
+                    'name': get_header(text, "CONFORMED-NAME",
+                                       endpos=doc_start.start()),
+                    'sic': get_header(text, "ASSIGNED-SIC",
                                       endpos=doc_start.start()),
-                   'sic': get_header(text, "ASSIGNED-SIC",
-                                     endpos=doc_start.start()),
-                   'fye': get_header(text, "FISCAL-YEAR-END",
-                                     endpos=doc_start.start()),
-                   'filing_date': get_header(text, "FILING-DATE",
-                                             endpos=doc_start.start()),
-                   'filing_date_period': get_header(text, "PERIOD",
-                                                    endpos=doc_start.start()),
-                   'filing_date_change': get_header(text, "DATE-OF-FILING-DATE-CHANGE",
-                                                    endpos=doc_start.start()),}
+                    'fye': get_header(text, "FISCAL-YEAR-END",
+                                      endpos=doc_start.start()),
+                    'filing_date': get_header(text, "FILING-DATE",
+                                              endpos=doc_start.start()),
+                    'filing_date_period': get_header(text, "PERIOD",
+                                                     endpos=doc_start.start()),
+                    'filing_date_change': get_header(text, "DATE-OF-FILING-DATE-CHANGE",
+                                                     endpos=doc_start.start()),}
         # Iteratively loop through open file buffer, reading buff_size chunks
         # until </DOCUMENT> tag is found. There is a chance that the tag could
         # be split across chunks, but it's a cost I'm willing to accept.
@@ -355,3 +353,14 @@ class CIKS(object):
     NIKE = 320187
     FORD = 37996
     WALMART = 104169
+
+class FORMS(object):
+    FORM_3 = "3"
+    FORM_4 = "4"
+    FORM_8K = "8-K"
+    FORM_10K = "10-K"
+    FORM_10Q = "10-Q"
+    FORM_DEF14A = "DEF14A"
+    FORM_13G = "13G"
+    FORM_13D = "13D"
+    FORM_13F = "13F"
