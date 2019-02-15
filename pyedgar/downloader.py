@@ -27,14 +27,14 @@ import requests
 try:
     from tqdm import tqdm
 except ModuleNotFoundError:
-    def tqdm(x,*args, **kqargs):
+    def tqdm(x, *args, **kwargs):
         return x
 
-from .exceptions import (InputTypeError, WrongFormType,
-                         NoFormTypeFound, NoCIKFound)
-from .utilities import localstore
-from .utilities import forms
-from .utilities import edgarweb
+from pyedgar.exceptions import (InputTypeError, WrongFormType,
+                                NoFormTypeFound, NoCIKFound)
+from pyedgar.utilities import localstore
+from pyedgar.utilities import forms
+from pyedgar.utilities import edgarweb
 
 
 class FilingPathFormatter(object):
@@ -52,14 +52,16 @@ class FilingPathFormatter(object):
                             "sec_daily_{0:%Y-%m-%d}.tar.gz"
                             .format(ident_string))
 
-    def get_index_filename(self, ident_string=None):
+    def get_index_filename(self, ident_string=None, compressed=False):
         """
         Return temp path for index tar file. Could be permanent if caching is on.
         This implementation requires a datetime object input.
         """
         return os.path.join(localstore.INDEX_ROOT, 'src',
-                            "full_index_{0:%Y}_Q{1}.idx"
-                            .format(ident_string, edgarweb._get_qtr(ident_string)))
+                            "full_index_{0:%Y}_Q{1}.{2}"
+                            .format(ident_string,
+                                    edgarweb._get_qtr(ident_string),
+                                    'gz' if compressed else 'idx'))
 
 
 class EDGARDownloader(object):
@@ -95,8 +97,8 @@ class EDGARDownloader(object):
         self._cache_daily_feed = cache_daily_feed_tars
 
         if keep_form_type_regex is None:
-            # Default to 10s, 8s, 13s, and Def 14As.
-            self.keep_regex = re.compile(r'10-[KQ]|8-K|13[FDG]|(?:14A$)')
+            # Default to 10s, 20s, 8s, 13s, and Def 14As.
+            self.keep_regex = re.compile(r'10-[KQ]|20-F|8-K|13[FDG]|(?:14A$)')
 
     def _handle_nc(self, file_or_str):
         """
@@ -177,7 +179,7 @@ class EDGARDownloader(object):
                                           expected_tot_len=expected_tot_len,
                                           remote_path=remote_path,
                                           local_target=local_target))
-                return local_target
+                break
 
             # Download or resume
             with requests.get(from_addr, headers=headers, stream=True) as response:
@@ -213,13 +215,14 @@ class EDGARDownloader(object):
 
         return local_target
 
-    def download_plaintext(self, remote_path, local_target, chunk_size=1024**2):
+    def download_plaintext(self, remote_path, local_target,
+                           chunk_size=1024**2, overwrite=False):
         """Download a plaintext file from `remote_path` to `local_target`."""
         from_addr = ('https://www.sec.gov/Archives{remote_path}'
                      .format(remote_path=remote_path))
 
         # Return if exists. Delete if it is partial?
-        if os.path.exists(local_target):
+        if os.path.exists(local_target) and not overwrite:
             return local_target
 
         # Verify destination directory exists
@@ -263,11 +266,27 @@ class EDGARDownloader(object):
 
         return self.download_tar(sec_path, tmp_filename)
 
-    def download_daily_index(self, dl_date):
+    def download_daily_index(self, dl_date, compressed=False, overwrite=False):
         """Download a quarterly index given a datetime input."""
         # For now, get the IDX file, not the zipped file. Because laziness and edu internet.
-        sec_path = edgarweb.get_idx_path(dl_date)
-        tmp_filename = self._path_formatter.get_index_filename(dl_date)
+        sec_path = edgarweb.get_idx_path(dl_date, tar=compressed)
+        tmp_filename = self._path_formatter.get_index_filename(dl_date, compressed=compressed)
+
+        if overwrite:
+            try:
+                os.remove(tmp_filename)
+            except:
+                pass
+
+        if compressed:
+            # try:
+            #     ret = self.download_tar(sec_path, tmp_filename)
+            #     with tarfile.open(tmp_filename, 'r') as tar:
+            #         pass
+            #     return ret
+            # except OSError:
+            #     os.remove(tmp_filename)
+            return self.download_tar(sec_path, tmp_filename)
 
         return self.download_plaintext(sec_path, tmp_filename)
 
@@ -305,49 +324,52 @@ class EDGARDownloader(object):
 
             with tarfile.open(feed_path, 'r') as tar:
                 i_done, i_tot = 0, 0
-                for tarinfo in tar:
-                    if len(tarinfo.name) < 3:
-                        continue
-                    i_tot += 1
-                    try:
-                        nc_file = tar.extractfile(tarinfo)
-                    except IOError:
-                        continue
-                    try:
-                        nc_dict = self._handle_nc(nc_file)
-                    except InputTypeError:
-                        self._logger.warning("Not a file or string at {} on {}"
-                                              .format(tarinfo.name, i_date))
-                        continue
-                    except NoCIKFound:
-                        if ".corr" not in tarinfo.name:
-                            self._logger.warning("No CIK found at {} on {}"
-                                                  .format(tarinfo.name, i_date))
-                        continue
-                    except NoFormTypeFound:
-                        if ".corr" not in tarinfo.name:
-                            self._logger.warning("No FormType found at {} on {}"
-                                                  .format(tarinfo.name, i_date))
-                        continue
-                    except WrongFormType:
-                        continue
-                    if not nc_dict:
-                        self._logger.error("Handling nc file {} on {} passed exceptions"
-                                            .format(tarinfo.name, i_date))
-                        continue
-                    # Get local nc file path. Accession is nc file filename.
-                    nc_out_path = self._path_formatter.get_filing_filename(nc_dict['cik'],
-                                                                           tarinfo.name)
-                    i_done += 1
-                    if os.path.exists(nc_out_path):
-                        continue
-                    if not os.path.exists(os.path.dirname(nc_out_path)):
-                        os.makedirs(os.path.dirname(nc_out_path))
-                    with open(nc_out_path, 'w', encoding=self.EDGAR_ENCODING) as fh:
-                        fh.write(nc_dict['doc'])
-
+                try:
+                    for tarinfo in tar:
+                        if len(tarinfo.name) < 3:
+                            continue
+                        i_tot += 1
+                        try:
+                            nc_file = tar.extractfile(tarinfo)
+                        except IOError:
+                            continue
+                        try:
+                            nc_dict = self._handle_nc(nc_file)
+                        except InputTypeError:
+                            self._logger.warning("Not a file or string at {} on {} ({}/{} extracted)"
+                                                .format(tarinfo.name, i_date, i_done, i_tot))
+                            continue
+                        except NoCIKFound:
+                            if ".corr" not in tarinfo.name:
+                                self._logger.warning("No CIK found at {} on {} ({}/{} extracted)"
+                                                    .format(tarinfo.name, i_date, i_done, i_tot))
+                            continue
+                        except NoFormTypeFound:
+                            if ".corr" not in tarinfo.name:
+                                self._logger.warning("No FormType found at {} on {} ({}/{} extracted)"
+                                                    .format(tarinfo.name, i_date, i_done, i_tot))
+                            continue
+                        except WrongFormType:
+                            continue
+                        if not nc_dict:
+                            self._logger.error("Handling nc file {} on {} passed exceptions ({}/{} extracted)"
+                                                .format(tarinfo.name, i_date, i_done, i_tot))
+                            continue
+                        # Get local nc file path. Accession is nc file filename.
+                        nc_out_path = self._path_formatter.get_filing_filename(nc_dict['cik'],
+                                                                            tarinfo.name)
+                        i_done += 1
+                        if os.path.exists(nc_out_path):
+                            continue
+                        if not os.path.exists(os.path.dirname(nc_out_path)):
+                            os.makedirs(os.path.dirname(nc_out_path))
+                        with open(nc_out_path, 'w', encoding=self.EDGAR_ENCODING) as fh:
+                            fh.write(nc_dict['doc'])
+                except tarfile.ReadError:
+                    self._logger.error("Handling nc file {} raised Read Error ({}/{} extracted)"
+                                       .format(tarinfo.name, i_done, i_tot))
             # Log progress after each tar file is done
-            self._logger.info("Finished adding {} out of {} from {}"
+            self._logger.info("Finished adding {} out of {} from {}\n"
             .format(i_done, i_tot, i_date))
 
             if not self._cache_daily_feed:
@@ -358,7 +380,7 @@ class EDGARDownloader(object):
 
 # Example running script. This will download past 30 days of forms and all indices.
 # run with ```python -m pyedgar.downloader --help```
-def main(start_date=None, get_indices=True, get_files=True):
+def main(start_date=None, get_indices=True, get_feeds=True):
     import pandas as pd
 
     foo = EDGARDownloader()
@@ -367,7 +389,7 @@ def main(start_date=None, get_indices=True, get_files=True):
     ch.setLevel(logging.DEBUG)
     foo._logger.addHandler(ch)
 
-    if get_files:
+    if get_feeds:
         if start_date is None:
             start_date = dt.date.fromordinal(dt.date.today().toordinal()-30)
         print("Downloading and extracting since {:%Y-%m-%d}...".format(start_date))
@@ -382,10 +404,16 @@ def main(start_date=None, get_indices=True, get_files=True):
     for y in range(1995, dt.date.today().year + 1):
         for q in range(4):
             d = dt.date(y, 1+q*3, 1)
-            f = foo.download_daily_index(d)
+            f = foo.download_daily_index(d, compressed=True)
             if not f:
                 continue
-            dfi = pd.read_csv(f, sep='|', skiprows=[0,1,2,3,4,5,6,7,8,10], encoding='latin-1')
+            try:
+                dfi = pd.read_csv(f, sep='|', encoding='latin-1',
+                                skiprows=[0, 1, 2, 3, 4, 5, 6, 7, 8, 10])
+            except OSError:
+                dfi = pd.read_csv(foo.download_daily_index(d, compressed=True, overwrite=True),
+                                  sep='|', encoding='latin-1',
+                                  skiprows=[0, 1, 2, 3, 4, 5, 6, 7, 8, 10])
             dfi['Accession'] = dfi.Filename.apply(lambda x: x.split('/')[-1][:-4])
             del dfi['Filename']
 
@@ -395,11 +423,12 @@ def main(start_date=None, get_indices=True, get_files=True):
     df.to_csv(os.path.join(localstore.INDEX_ROOT, 'all_filings.tab'), sep='\t', index=False)
     all_forms = df['Form Type'].unique()
     save_forms = {
-        '10-K': [x for x in all_forms if '10-K' in x and 'NT' not in x],
-        '10-Q': [x for x in all_forms if '10-Q' in x and 'NT' not in x],
-        'DEF14A':  [x for x in all_forms if x.endswith('14A')],
-        '13s':  [x for x in all_forms if 'SC 13' in x or '13F' in x],
+        '10-K':   [x for x in all_forms if x[:4] == '10-K'],
+        '10-Q':   [x for x in all_forms if x[:4] == '10-Q'],
+        'DEF14A': [x for x in all_forms if x.endswith('14A')],
+        '13s':    [x for x in all_forms if 'SC 13' in x or '13F-' in x],
         '8-K': '8-K 8-K/A'.split(),
+        '20-F':   [x for x in all_forms if x[:4] == '20-F'],
     }
     for form,formlist in save_forms.items():
         (df[df['Form Type'].isin(formlist)]
@@ -425,11 +454,11 @@ if __name__ == '__main__':
 
     argp.add_argument('-i', '--no-indices', action='store_false', dest='get_indices',
                       help='Do not download and update indices.')
-    argp.add_argument('-f', '--no-files', action='store_false', dest='get_files',
-                      help='Do not download and extract daily feed files.')
+    argp.add_argument('-f', '--no-feeds', action='store_false', dest='get_feeds',
+                      help='Do not download and extract daily feed feeds.')
 
-    args = argp.parse_args()
+    cl_args = argp.parse_args()
 
-    main(start_date=args.start_date,
-         get_indices=args.get_indices,
-         get_files=args.get_files)
+    main(start_date=cl_args.start_date,
+         get_indices=cl_args.get_indices,
+         get_feeds=cl_args.get_feeds)
