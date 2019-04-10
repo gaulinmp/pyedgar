@@ -2,7 +2,7 @@
 """
 General python utility functions.
 
-:copyright: © 2018 by Mac Gaulin
+:copyright: © 2019 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 

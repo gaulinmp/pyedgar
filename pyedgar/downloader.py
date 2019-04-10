@@ -12,13 +12,13 @@ URL Change in 2016:
   <2016 ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
   >2016 http URL: https://www.sec.gov/Archives/edgar/data/2098/0000002098-96-000003.txt
 
-:copyright: © 2018 by Mac Gaulin
+:copyright: © 2019 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
 import os
-import sys
-import re
+# import sys
+# import re
 import tarfile
 import logging
 import datetime as dt
@@ -30,6 +30,7 @@ except ModuleNotFoundError:
     def tqdm(x, *args, **kwargs):
         return x
 
+from pyedgar import config
 from pyedgar.exceptions import (InputTypeError, WrongFormType,
                                 NoFormTypeFound, NoCIKFound)
 from pyedgar.utilities import localstore
@@ -41,26 +42,26 @@ class FilingPathFormatter(object):
     """Placeholder class so you can throw your own pathing here."""
     def get_filing_filename(self, cik, accession, *args, **kwargs):
         """Take cik, accession, and whatever else data. Return Path to local file."""
-        return localstore.get_filing_path(cik, accession)
+        return localstore.get_filing_path(cik=cik, accession=accession, **kwargs)
 
-    def get_feed_filename(self, ident_string=None):
+    def get_feed_filename(self, datetime_in=None):
         """
         Return temp path for feed tar file. Could be permanent if caching is on.
         This implementation requires a datetime object input.
         """
-        return os.path.join(localstore.FEED_CACHE_ROOT,
+        return os.path.join(config.FEED_CACHE_ROOT,
                             "sec_daily_{0:%Y-%m-%d}.tar.gz"
-                            .format(ident_string))
+                            .format(datetime_in))
 
-    def get_index_filename(self, ident_string=None, compressed=False):
+    def get_index_filename(self, datetime_in=None, compressed=False):
         """
         Return temp path for index tar file. Could be permanent if caching is on.
         This implementation requires a datetime object input.
         """
-        return os.path.join(localstore.INDEX_ROOT, 'src',
+        return os.path.join(config.INDEX_CACHE_ROOT, 'src',
                             "full_index_{0:%Y}_Q{1}.{2}"
-                            .format(ident_string,
-                                    edgarweb._get_qtr(ident_string),
+                            .format(datetime_in,
+                                    edgarweb._get_qtr(datetime_in),
                                     'gz' if compressed else 'idx'))
 
 
@@ -71,12 +72,13 @@ class EDGARDownloader(object):
     I have just enough flexibility here for my computer. It works on Linux, YWindowsMMV.
     """
     # These should work for everypeople.
-    # EDGAR_ENCODING = 'latin-1' # The SEC documentation says it uses latin-1
-    EDGAR_ENCODING = 'utf-8' # But I like utf-8. Because.
+    EDGAR_ENCODING = 'latin-1' # The SEC documentation says it uses latin-1
+    # EDGAR_ENCODING = 'utf-8' # Alternatively one could use utf-8.
 
     # These should be changed for you. Either in source, or more better at runtime.
     email = None
     keep_regex = None
+    check_cik = False
 
     # Keep these secret. Keep them safe.
     _path_formatter = None
@@ -87,7 +89,8 @@ class EDGARDownloader(object):
     def __init__(self,
                  path_formatter=None,
                  cache_daily_feed_tars=True,
-                 keep_form_type_regex=None):
+                 keep_form_type_regex=None,
+                 check_cik=False):
         """The initialize class. Documentation is hard."""
         if path_formatter is None:
             self._path_formatter = FilingPathFormatter()
@@ -96,16 +99,21 @@ class EDGARDownloader(object):
 
         self._cache_daily_feed = cache_daily_feed_tars
 
-        if keep_form_type_regex is None:
-            # Default to 10s, 20s, 8s, 13s, and Def 14As.
-            self.keep_regex = re.compile(r'10-[KQ]|20-F|8-K|13[FDG]|(?:14A$)')
+        self.check_cik = check_cik
+        self.keep_regex = keep_form_type_regex
+        # Use the following to default to 10s, 20s, 8s, 13s, and Def 14As.
+        # if keep_form_type_regex is None:
+        #    re.compile(r'10-[KQ]|10[KQ]SB|20-F|8-K|13[FDG]|(?:14A$)')
 
     def _handle_nc(self, file_or_str):
         """
-        Reads file or string, returns {'cik', 'accession', 'form_type', 'doc'}
-        or None on failure.
+        Reads file or string, returns dictionary based on flags or None on failure.
+        At a minimum, it returns: {'doc'}
 
-        Raises WrongFormType if FORM-TYPE SGML tag doesn't match `keep_regex`.
+        If keep_regex is set (not None), it adds 'form_type'.
+            (Raises WrongFormType if FORM-TYPE SGML tag doesn't match `keep_regex`.)
+
+        If check_cik is True, it extracts and adds 'cik'.
         """
         try:
             txt = file_or_str.read()
@@ -118,22 +126,26 @@ class EDGARDownloader(object):
         try:
             txt = txt.decode(self.EDGAR_ENCODING) #uuuuuuuuuuunicode
         except UnicodeDecodeError:
-            self._logger.error("UNICODE ERROR: %r", txt)
+            self._logger.error("UNICODE ERROR: %r", txt[:1000])
             txt = txt.decode(self.EDGAR_ENCODING, errors='ignore') #uuuuuuuuuuunicode
 
-        ret_val = {'form_type': forms.get_header(txt, "FORM-TYPE"),
-                   'cik': forms.get_header(txt, "CIK"),
-                   'accession': forms.get_header(txt, 'ACCESSION-NUMBER'),
-                   'doc': txt}
+        ret_val = {'doc': txt}
 
-        if not ret_val['form_type']:
-            raise NoFormTypeFound(ret_val['form_type'])
+        if self.keep_regex is not None:
+            ret_val['form_type'] = forms.get_header(txt, "FORM-TYPE")
 
-        if not self.keep_regex.search(ret_val['form_type']):
-            raise WrongFormType(ret_val['form_type'])
+            if not ret_val['form_type']:
+                raise NoFormTypeFound(ret_val['form_type'])
 
-        if not ret_val['cik']:
-            raise NoCIKFound("No CIK found in {}".format(txt[:250]))
+            if not self.keep_regex.search(ret_val['form_type']):
+                raise WrongFormType(ret_val['form_type'])
+
+        if self.check_cik:
+            ret_val['cik'] = forms.get_header(txt, "CIK")
+            ret_val['accession'] = forms.get_header(txt, 'ACCESSION-NUMBER')
+
+            if not ret_val['cik']:
+                raise NoCIKFound("No CIK found in {}".format(txt[:250]))
 
         return ret_val
 
@@ -173,13 +185,24 @@ class EDGARDownloader(object):
 
             # If local length matches, we are done. Return local path
             if expected_tot_len == loc_size:
-                self._logger.info(("Already downloaded ({loc_size}=={expected_tot_len}) "
+                self._logger.info(("Already downloaded ({loc_size:,d}=={expected_tot_len:,d}) "
                                    "from {remote_path} to {local_target}")
                                   .format(loc_size=loc_size,
                                           expected_tot_len=expected_tot_len,
                                           remote_path=remote_path,
                                           local_target=local_target))
                 break
+
+            # If local length matches, we are done. Return local path
+            if loc_size > expected_tot_len:
+                self._logger.info(("Downloaded too much ({loc_size:,d} > {expected_tot_len:,d}) "
+                                   "from {remote_path}, removing {local_target}")
+                                  .format(loc_size=loc_size,
+                                          expected_tot_len=expected_tot_len,
+                                          remote_path=remote_path,
+                                          local_target=local_target))
+                os.remove(local_target)
+                continue
 
             # Download or resume
             with requests.get(from_addr, headers=headers, stream=True) as response:
@@ -279,13 +302,6 @@ class EDGARDownloader(object):
                 pass
 
         if compressed:
-            # try:
-            #     ret = self.download_tar(sec_path, tmp_filename)
-            #     with tarfile.open(tmp_filename, 'r') as tar:
-            #         pass
-            #     return ret
-            # except OSError:
-            #     os.remove(tmp_filename)
             return self.download_tar(sec_path, tmp_filename)
 
         return self.download_plaintext(sec_path, tmp_filename)
@@ -326,51 +342,63 @@ class EDGARDownloader(object):
                 i_done, i_tot = 0, 0
                 try:
                     for tarinfo in tar:
-                        if len(tarinfo.name) < 3:
+                        if len(tarinfo.name) < 3 or '.corr' in tarinfo.name or not tarinfo.name.endswith('.nc'):
                             continue
                         i_tot += 1
+                        nc_acc = tarinfo.name.split('/')[-1][:-3]
+                        if len(nc_acc) != 20:
+                            self._logger.warning("Accession in filename seems suspect. %r", nc_acc)
                         try:
                             nc_file = tar.extractfile(tarinfo)
                         except IOError:
                             continue
+
+                        # At this point, we have a file, and we have an accession.
+                        # This should be all we need to save it off.
                         try:
                             nc_dict = self._handle_nc(nc_file)
                         except InputTypeError:
                             self._logger.warning("Not a file or string at {} on {} ({}/{} extracted)"
-                                                .format(tarinfo.name, i_date, i_done, i_tot))
+                                                 .format(tarinfo.name, i_date, i_done, i_tot))
                             continue
                         except NoCIKFound:
+                            # This only triggers if self.check_cik is set.
                             if ".corr" not in tarinfo.name:
                                 self._logger.warning("No CIK found at {} on {} ({}/{} extracted)"
-                                                    .format(tarinfo.name, i_date, i_done, i_tot))
+                                                     .format(tarinfo.name, i_date, i_done, i_tot))
                             continue
                         except NoFormTypeFound:
+                            # This only triggers if self.keep_regex is set.
                             if ".corr" not in tarinfo.name:
                                 self._logger.warning("No FormType found at {} on {} ({}/{} extracted)"
-                                                    .format(tarinfo.name, i_date, i_done, i_tot))
+                                                     .format(tarinfo.name, i_date, i_done, i_tot))
                             continue
                         except WrongFormType:
+                            # This only triggers if self.keep_regex is set.
                             continue
                         if not nc_dict:
                             self._logger.error("Handling nc file {} on {} passed exceptions ({}/{} extracted)"
-                                                .format(tarinfo.name, i_date, i_done, i_tot))
+                                               .format(tarinfo.name, i_date, i_done, i_tot))
                             continue
                         # Get local nc file path. Accession is nc file filename.
-                        nc_out_path = self._path_formatter.get_filing_filename(nc_dict['cik'],
-                                                                            tarinfo.name)
+                        nc_out_path = self._path_formatter.get_filing_filename(1, nc_acc)
                         i_done += 1
                         if os.path.exists(nc_out_path):
                             continue
+
+                        # Sometimes the containing dir (cik or year) doesn't exist. Make it so.
                         if not os.path.exists(os.path.dirname(nc_out_path)):
                             os.makedirs(os.path.dirname(nc_out_path))
+
                         with open(nc_out_path, 'w', encoding=self.EDGAR_ENCODING) as fh:
                             fh.write(nc_dict['doc'])
+
                 except tarfile.ReadError:
                     self._logger.error("Handling nc file {} raised Read Error ({}/{} extracted)"
                                        .format(tarinfo.name, i_done, i_tot))
             # Log progress after each tar file is done
             self._logger.info("Finished adding {} out of {} from {}\n"
-            .format(i_done, i_tot, i_date))
+                              .format(i_done, i_tot, i_date))
 
             if not self._cache_daily_feed:
                 try:
@@ -380,7 +408,7 @@ class EDGARDownloader(object):
 
 # Example running script. This will download past 30 days of forms and all indices.
 # run with ```python -m pyedgar.downloader --help```
-def main(start_date=None, get_indices=True, get_feeds=True):
+def main(start_date=None, get_indices=True, get_feeds=True, extract_feeds=True):
     import pandas as pd
 
     foo = EDGARDownloader()
@@ -389,11 +417,26 @@ def main(start_date=None, get_indices=True, get_feeds=True):
     ch.setLevel(logging.DEBUG)
     foo._logger.addHandler(ch)
 
+    if start_date is None:
+        start_date = dt.date.fromordinal(dt.date.today().toordinal()-30)
+
     if get_feeds:
-        if start_date is None:
-            start_date = dt.date.fromordinal(dt.date.today().toordinal()-30)
         print("Downloading and extracting since {:%Y-%m-%d}...".format(start_date))
-        foo.extract_daily_feeds(start_date)
+        if extract_feeds:
+            foo.extract_daily_feeds(start_date)
+        else:
+            for i_date, feed_path in foo.iter_daily_feeds(start_date):
+                if not feed_path:
+                    # This day doesn't exist on EDGAR.
+                    # Not sure why servers can't work on weekends.
+                    continue
+
+                if not os.path.exists(feed_path):
+                    foo._logger.error("Failed to download {} file to {}."
+                                       .format(i_date, feed_path))
+                    continue
+                print("Done downloading {}".format(feed_path))
+
         print(" Done!")
 
     if not get_indices:
@@ -420,10 +463,10 @@ def main(start_date=None, get_indices=True, get_feeds=True):
             df = pd.concat([df, dfi], copy=False)
 
     df['Date Filed'] = pd.to_datetime(df['Date Filed'])
-    df.to_csv(os.path.join(localstore.INDEX_ROOT, 'all_filings.tab'), sep='\t', index=False)
+    df.to_csv(os.path.join(config.INDEX_ROOT, 'all_filings.tab'), sep='\t', index=False)
     all_forms = df['Form Type'].unique()
     save_forms = {
-        '10-K':   [x for x in all_forms if x[:4] == '10-K'],
+        '10-K':   [x for x in all_forms if x[:4] == '10-K' or x[:5] == '10KSB'],
         '10-Q':   [x for x in all_forms if x[:4] == '10-Q'],
         'DEF14A': [x for x in all_forms if x.endswith('14A')],
         '13s':    [x for x in all_forms if 'SC 13' in x or '13F-' in x],
@@ -433,7 +476,7 @@ def main(start_date=None, get_indices=True, get_feeds=True):
     for form,formlist in save_forms.items():
         (df[df['Form Type'].isin(formlist)]
            .sort_values(['CIK','Date Filed'])
-           .to_csv(os.path.join(localstore.INDEX_ROOT, 'form_{}.tab'.format(form)),
+           .to_csv(os.path.join(config.INDEX_ROOT, 'form_{}.tab'.format(form)),
                    sep='\t', index=False))
     print(" Done!")
 
@@ -455,10 +498,13 @@ if __name__ == '__main__':
     argp.add_argument('-i', '--no-indices', action='store_false', dest='get_indices',
                       help='Do not download and update indices.')
     argp.add_argument('-f', '--no-feeds', action='store_false', dest='get_feeds',
-                      help='Do not download and extract daily feed feeds.')
+                      help='Do not download or extract daily feed feeds.')
+    argp.add_argument('-e', '--no-extract', action='store_false', dest='extract_feeds',
+                      help='Do not extract daily feed feeds.')
 
     cl_args = argp.parse_args()
 
     main(start_date=cl_args.start_date,
          get_indices=cl_args.get_indices,
-         get_feeds=cl_args.get_feeds)
+         get_feeds=cl_args.get_feeds,
+         extract_feeds=cl_args.extract_feeds)

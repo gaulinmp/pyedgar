@@ -2,38 +2,54 @@
 """
 Utilities for general EDGAR website tasks.
 
-:copyright: © 2018 by Mac Gaulin
+:copyright: © 2019 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 import os
 import re
 import logging
 
+from pyedgar import config
+#  import FEED_ROOT, FEED_CACHE_ROOT, INDEX_ROOT, INDEX_CACHE_ROOT
+
 __logger = logging.getLogger(__name__)
 
-# This is platform specific. Probably a better solution than hard coding...
-FEED_ROOT = '/data/storage/edgar/feeds/'
-FEED_CACHE_ROOT = '/data/backup/edgar/feeds/'
-INDEX_ROOT = '/data/storage/edgar/indices/'
 ACCESSION_RE = re.compile(r'(?P<accession>\d{10}-?\d\d-?\d{6})', re.I)
 
-def get_filing_path(cik, accession):
-    """Return filepath to local copy of EDGAR filing. Filing document is .txt
+def get_filing_path(*args, **kwargs):
+    """Return filepath to local copy of EDGAR filing. Filing document is .nc
     file with full submission, including main filing and exhibits/attachments.
 
-    :param cik: The root directory at which to start searching.
-    :param string accession: 18 digit accession string (optionally with dashes).
+    :param args: Tries to guess cik/accession in the args passed in. cik/accession passed in by kwargs overrides these args.
+    :param kwargs: dictionary to be passed to config.format_filing_path.
 
-    :return: Full path to local filing document.
+    :return: Full path to local filing document. Equal to join(FILING_ROOT, format_filing_path(**kwargs))
     :rtype: string
     """
-    if not cik or not accession:
-        raise ValueError("Requires non-missing CIK({}) and Accession({})"
-                         .format(cik, accession))
-    try:
-        cik_full = "{:010d}".format(int(cik))
-    except ValueError:
-        return None # CIK not in integer format.
+    cik = kwargs.get('cik', None)
+    accession = kwargs.get('accession', None)
+
+    if args:
+        if accession is None:
+            accession = [arg for arg in args if ACCESSION_RE.match(str(arg))]
+            if accession:
+                accession = accession[0]
+            else:
+                accession = None
+
+        if cik is None:
+            for arg in args:
+                if len(str(arg)) <= 10:
+                    try:
+                        cik = int(arg)
+                    except (ValueError, TypeError):
+                        continue
+                    break
+
+    if cik is None and accession is None:
+        raise ValueError("Requires non-missing CIK({}) or Accession({}). Got: args:{}, kwargs:{}"
+                         .format(cik, accession, args, kwargs))
+
     try:
         clean_ac = ACCESSION_RE.search(accession).group('accession')
         if len(clean_ac) == 18: # no dashes found. Add dashes.
@@ -41,9 +57,14 @@ def get_filing_path(cik, accession):
     except AttributeError: # no .group found.
         clean_ac = accession
 
-    path = os.path.join(FEED_ROOT, *[cik_full[i:i+2] for i in range(0,10,2)] )
+    if cik is not None:
+        kwargs['cik'] = cik
+    if accession is not None:
+        kwargs['accession'] = accession
 
-    return os.path.join(path, clean_ac + '.txt')
+    formatted_filename = config.format_filing_path(**kwargs)
+
+    return os.path.join(config.FILING_ROOT, formatted_filename)
 
 def walk_files(root_dir, filename_regex=None, return_dirs=False):
     """Iteratively walk directories and files, returning full paths.
