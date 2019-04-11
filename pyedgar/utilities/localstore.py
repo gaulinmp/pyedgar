@@ -17,8 +17,10 @@ __logger = logging.getLogger(__name__)
 ACCESSION_RE = re.compile(r'(?P<accession>\d{10}-?\d\d-?\d{6})', re.I)
 
 def get_filing_path(*args, **kwargs):
-    """Return filepath to local copy of EDGAR filing. Filing document is .nc
-    file with full submission, including main filing and exhibits/attachments.
+    """
+    Return filepath to local copy of EDGAR filing.
+    Filing document is .nc file with full submission, including main filing and exhibits/attachments.
+    Does some sanity checking on top of config.get_filing_path
 
     :param args: Tries to guess cik/accession in the args passed in. cik/accession passed in by kwargs overrides these args.
     :param kwargs: dictionary to be passed to config.format_filing_path.

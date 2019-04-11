@@ -15,8 +15,26 @@ EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 :copyright: © 2019 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
+
+import os
+# import sys
 import re
+# import tarfile
+import logging
 # import datetime as dt
+import requests
+
+try:
+    def faketqdm(x, *args, **kwargs):
+        return x
+    from tqdm import tqdm
+except ModuleNotFoundError:
+    tqdm = faketqdm
+
+
+# Constants
+# Used to be (before FPT changed to AWS S3): ftp://ftp.sec.gov
+EDGAR_ROOT = 'https://www.sec.gov/Archives'
 
 
 def parse_url(url):
@@ -58,9 +76,8 @@ def get_edgar_urls(cik, accession=None):
             except AttributeError:
                 pass
 
-    # Before FPT change: ftp://ftp.sec.gov/edgar/
-    return ('https://www.sec.gov/Archives/edgar/data/{}/{}.txt'.format(cik, accession),
-            'http://www.sec.gov/Archives/edgar/data/{}/{}-index.htm'.format(cik, accession))
+    return ('{}/edgar/data/{}/{}.txt'.format(EDGAR_ROOT, cik, accession),
+            '{}/edgar/data/{}/{}-index.htm'.format(EDGAR_ROOT, cik, accession))
 
 def edgar_links(cik, accession=None):
     """Generage HTML encoded links (using `a` tag) to EDGAR 'bulk download' and 'user facing' sites.
@@ -91,7 +108,7 @@ def get_feed_path(date):
     feed_path = "/edgar/Feed/{0:%Y}/QTR{1}/{0:%Y%m%d}.nc.tar.gz"
     return feed_path.format(date, _get_qtr(date))
 
-def get_idx_path(date_or_year, quarter=None, tar=False):
+def get_idx_path(date_or_year, quarter=None, compressed=False):
     """
     Get URL path to quarterly index file. Don't feed it a year and no quarter.
     """
@@ -102,5 +119,151 @@ def get_idx_path(date_or_year, quarter=None, tar=False):
     except AttributeError:
         # Then date_or_year is an integer. Leave it be.
         pass
-    idx_path = "/edgar/full-index/{0}/QTR{1}/master.{2}"
-    return idx_path.format(date_or_year, quarter, 'gz' if tar else 'idx')
+
+    return ("/edgar/full-index/{0}/QTR{1}/master.{2}"
+            .format(date_or_year, quarter, 'gz' if compressed else 'idx'))
+
+
+class EDGARDownloader(object):
+    """
+    Class that downloads files from EDGAR.
+    Supports resuming on compressed (tar) files.
+    """
+
+    # May as well share this across instances (instead of setting in __init__)
+    _logger = logging.getLogger(__name__)
+
+    _tq = None
+
+    def __init__(self, use_tqdm=True):
+        """
+        Initialize the downloader object.
+
+        use_tqdm: sets whether download progress is wrapped in tqdm.
+        """
+        self._tq = tqdm if use_tqdm else faketqdm
+
+    def download_tar(self, remote_path, local_target, chunk_size=1024**2, retries=5, resume=True):
+        """Download a file from `remote_path` to `local_target`."""
+        from_addr = ('{edgar_root}{remote_path}'
+                     .format(edgar_root=EDGAR_ROOT, remote_path=remote_path))
+
+        # Verify destination directory exists
+        if not os.path.exists(os.path.dirname(local_target)):
+            raise FileNotFoundError('The directory does not exist: {}'
+                                    .format(os.path.dirname(local_target)))
+
+        # If it fails, try, try, try, try again. Then stop; accept failure.
+        for n_retries in range(retries):
+            # Check for local copy and determine length (for caching/resuming)
+            try:
+                loc_size = os.path.getsize(local_target)
+                headers = {'Range': 'bytes={loc_size}-'.format(loc_size=loc_size)}
+                # Resume with header: Range: bytes=StartPos- (implicit end pos)
+            except FileNotFoundError:
+                loc_size = 0
+                headers = None
+
+            # Check total file length on server
+            with requests.get(from_addr, stream=True) as response:
+                if response.status_code // 100 == 4:
+                    # No such file
+                    return None
+                expected_tot_len = int(response.headers['content-length'])
+
+            # If local length matches, we are done. Return local path
+            if expected_tot_len == loc_size:
+                self._logger.info("Already downloaded (%r == %r) from %r to %r",
+                                  loc_size, expected_tot_len, remote_path, local_target)
+                break
+
+            # If local length is longer than server, we done goofed. Delete it and try again.
+            if loc_size > expected_tot_len:
+                self._logger.info("Downloaded too much (%r > %r) from %r, removing %r",
+                                  loc_size, expected_tot_len, remote_path, local_target)
+                os.remove(local_target)
+                loc_size = 0
+                headers = None
+            elif not resume and (0 < loc_size < expected_tot_len):
+                self._logger.info("No resuming (%r < %r), removing %r",
+                                  loc_size, expected_tot_len, local_target)
+                os.remove(local_target)
+                loc_size = 0
+                headers = None
+
+            self._logger.info("Downloading %r of %r: %r to %r",
+                              n_retries, retries, remote_path, local_target)
+
+            # Download or resume
+            with requests.get(from_addr, headers=headers, stream=True) as response:
+                expected_len = int(response.headers['content-length'])
+
+                if loc_size:
+                    self._logger.info("Already downloaded (%r/%r, remaining: %r) from %r to %r",
+                                      loc_size, expected_tot_len, expected_len, remote_path, local_target)
+
+                with open(local_target, 'ab' if loc_size else 'wb') as fh:
+                    self._logger.info("Saving tar {} to {}"
+                                      .format(remote_path, local_target))
+
+                    for chunk in self._tq(response.iter_content(chunk_size=chunk_size),
+                                          total=expected_len//chunk_size,
+                                          unit="Mb",
+                                          desc=os.path.basename(local_target)):
+                        if chunk:  # filter out keep-alive new chunks
+                            fh.write(chunk)
+
+            self._logger.info("Done saving (len: {}) {}"
+                                .format(os.path.getsize(local_target),
+                                        local_target))
+
+            break  # Done downloading, break out of range(5)
+
+        return local_target
+
+    def download_plaintext(self, remote_path, local_target, chunk_size=1024**2):
+        """
+        Download a plaintext file from `remote_path` to `local_target`.
+        Forces download, because there's no way to verify with server that the whole file is downloaded,
+        unlike gzip compressed files above.
+        """
+        from_addr = ('https://www.sec.gov/Archives{remote_path}'
+                     .format(remote_path=remote_path))
+
+        # Return if exists. Delete if it is partial?
+        if os.path.exists(local_target):
+            os.remove(local_target)
+
+        # Verify destination directory exists
+        if not os.path.exists(os.path.dirname(local_target)):
+            raise FileNotFoundError('The directory does not exist: {}'
+                                    .format(os.path.dirname(local_target)))
+
+        self._logger.info(("Downloading plaintext: "
+                           "{remote_path} to {local_target}")
+                           .format(remote_path=remote_path,
+                                   local_target=local_target))
+
+        # Check total file length on server
+        with requests.get(from_addr, stream=True) as response:
+            if response.status_code // 100 == 4:
+                # No such file
+                return None
+            expected_tot_len = int(response.headers.get('content-length', 10 * 1024**2))
+
+            with open(local_target, 'wb') as fh:
+                self._logger.info("Saving plaintext {} to {}"
+                                    .format(remote_path, local_target))
+
+                for chunk in self._tq(response.iter_content(chunk_size=chunk_size),
+                                      total=expected_tot_len//chunk_size,
+                                      unit="Mb",
+                                      desc=os.path.basename(local_target)):
+                    if chunk:  # filter out keep-alive new chunks
+                        fh.write(chunk)
+
+        self._logger.info("Done saving (len: {}) {}"
+                            .format(os.path.getsize(local_target),
+                                    local_target))
+
+        return local_target
