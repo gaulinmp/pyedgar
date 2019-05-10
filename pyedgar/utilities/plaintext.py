@@ -4,7 +4,7 @@ General utilities for interacting with plaintext documents.
 
 EDGAR document specification details: https://www.sec.gov/info/edgar/pdsdissemspec051310.pdf
 
-:copyright: © 2018 by Mac Gaulin
+:copyright: © 2019 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
@@ -24,7 +24,7 @@ _re_number = re.compile(r'\b[\'"$-]*[\d.][\d.,]*\b')
 def find_newlines(text, pos=0, endpos=-1):
     """
     Returns the list of the position of the _last_ set of newlines in a
-    consecutive group. Includes the character at endposition. 
+    consecutive group. Includes the character at endposition.
     """
     if endpos <= pos:
         endpos = len(text)

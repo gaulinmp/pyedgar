@@ -2,7 +2,7 @@
 """
 Base class for EDGAR filing.
 
-:copyright: © 2018 by Mac Gaulin
+:copyright: © 2019 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
@@ -10,10 +10,10 @@ Base class for EDGAR filing.
 import re
 import logging
 
-from .utilities import edgarweb
-from .utilities import forms
-from .utilities.forms import FORMS
-from .utilities import localstore
+from pyedgar.utilities import edgarweb
+from pyedgar.utilities import forms
+from pyedgar.utilities.forms import FORMS
+from pyedgar.utilities import localstore
 
 class Filing(object):
     """
@@ -35,8 +35,10 @@ class Filing(object):
     _documents = None
     # Object logger for logging things and stuff.
     __log = None
+    # Read-filing arguments
+    read_args = None
 
-    def __init__(self, cik, accession):
+    def __init__(self, cik=None, accession=None):
         """
         Initialization sets CIK, Accession, and optionally
         loads filing from disk.
@@ -56,6 +58,8 @@ class Filing(object):
 
         self._set_cik(cik)
         self._set_accession(accession)
+
+        self.read_args = {}
 
     def __repr__(self):
         return ("<EDGAR filing ({}/{}) Headers:{}, Text:{}, Documents:{}>"
@@ -81,7 +85,7 @@ class Filing(object):
             ValueError: if cik is not numerical (or castable to int).
         """
         try:
-            if cik:
+            if cik is not None:
                 self._cik = int(cik)
         except ValueError:
             # They didn't pass in a CIK that looked like a number
@@ -136,7 +140,7 @@ class Filing(object):
         """
         if not self._full_text:
             try:
-                self._full_text = forms.get_full_filing(self.path)
+                self._full_text = forms.get_full_filing(self.path, **self.read_args)
             except FileNotFoundError:
                 msg = ("Filing not found for CIK:{} / Accession:{}"
                        .format(self._cik, self._accession))
@@ -182,9 +186,9 @@ class Filing(object):
             self._type = FORMS.FORM_4
         elif _t in ('8-K', '8-K/A'):
             self._type = FORMS.FORM_8K
-        elif _t[:4] == '10-Q':
+        elif _t[:4] in ('10-Q' '10QS'):
             self._type = FORMS.FORM_10Q
-        elif _t[:4] == '10-Q':
+        elif _t[:4] in ('10-K' '10KS'):
             self._type = FORMS.FORM_10K
         elif _t.endswith('14A'):
             self._type = FORMS.FORM_DEF14A
@@ -194,6 +198,8 @@ class Filing(object):
             self._type = FORMS.FORM_13D
         elif '13F-' in _t:
             self._type = FORMS.FORM_13F
+
+        return self._type
 
     def _set_documents(self):
         """
@@ -218,7 +224,7 @@ class Filing(object):
         Sets it lazily the first time it is used.
         """
         if not self._filing_local_path:
-            self._filing_local_path = localstore.get_filing_path(self._cik, self._accession)
+            self._filing_local_path = localstore.get_filing_path(cik=self._cik, accession=self._accession)
 
         return self._filing_local_path
 
