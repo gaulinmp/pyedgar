@@ -94,6 +94,22 @@ Config files named ``pyedgar.conf``, ``.pyedgar``, ``pyedgar.ini`` are searched 
 
 See the [example config file](pyedgar.conf) for commented config settings.
 
+Running multiple configs is quite easy, by setting ``os.environ`` manually:
+
+```python
+
+import os
+# os.environ['PYEDGAR_CONF'] = os.path.expanduser('~/Dropbox/config/pyedgar/hades.local.pyedgar.conf')
+os.environ['PYEDGAR_CONF'] = os.path.expanduser('~/Dropbox/config/pyedgar/hades.desb.pyedgar.conf')
+
+from pyedgar import config
+print(config.CONFIG_FILE)
+
+# Output:
+#     WARNING:pyedgar.config:Loaded config file from '[~]/Dropbox/config/pyedgar/hades.desb.pyedgar.conf'. 
+#     ALERT!!!! FILING_PATH_FORMAT is '{accession[11:13]}/{accession}.nc'.
+#     [~]/Dropbox/config/pyedgar/hades.desb.pyedgar.conf
+```
 
 ## Requirements
 
