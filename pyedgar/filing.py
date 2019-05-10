@@ -38,7 +38,7 @@ class Filing(object):
     # Read-filing arguments
     read_args = None
 
-    def __init__(self, cik=None, accession=None):
+    def __init__(self, cik=None, accession=None, **kwargs):
         """
         Initialization sets CIK, Accession, and optionally
         loads filing from disk.
@@ -59,7 +59,7 @@ class Filing(object):
         self._set_cik(cik)
         self._set_accession(accession)
 
-        self.read_args = {}
+        self.read_args = kwargs
 
     def __repr__(self):
         return ("<EDGAR filing ({}/{}) Headers:{}, Text:{}, Documents:{}>"

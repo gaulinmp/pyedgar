@@ -209,7 +209,7 @@ def get_all_headers_flat(text, pos=0, endpos=None,
             ret[key] = val
             continue
 
-        if type(ret[key]) != list:
+        if not isinstance(ret[key], list):
             ret[key] = [ret[key],]
 
         ret[key].append(val)
