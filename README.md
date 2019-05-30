@@ -22,6 +22,17 @@ print(form_10k.head(1))
 #    0   20  K TRON INTERNATIONAL INC  10-K  1996-03-28  0000893220-96-000500
 ```
 
+To get a type of form that isn't automatically extracted, you can use form_all:
+
+```python
+df_s1 = EDGARIndex().get_index('form_all').query("form.str.startswith('S-1')")
+
+print(df_s1.head(1))
+# Output:
+#        cik        name form    filedate             accession
+# 5600  1961  WORLDS INC  S-1  2014-02-04  0001264931-14-000033
+```
+
 All indices are loaded and saved by pandas, so pandas is a requirement for using this functionality.
 
 
