@@ -7,13 +7,28 @@ Python package for downloading EDGAR documents and data
 There are two primary interfaces to this library, namely indices and filings. 
 
 ### index.py
-[index.py](pyedgar/index.py) is the main module for accessing extracted EDGAR indices. 
-The indices are created in pyedgar.utilities.indices by the IndexMaker class.
-Once these indices are created, you can access them by:
+[index.py](pyedgar/index.py) is the main module for accessing extracted EDGAR indices.
+The indices are created in [pyedgar.utilities.indices](pyedgar/utilities/indices.py#L34) by the IndexMaker class.
+Once these indices are created, you can view them via the ``indices`` property:
 
 ```python
 from pyedgar.index import EDGARIndex
 all_indices = EDGARIndex()
+
+print(all_indices.indices)
+# Output:
+# {'form_all.tab': '/data/storage/edgar/indices/form_all.tab',
+#  'form_10-Q.tab': '/data/storage/edgar/indices/form_10-Q.tab',
+#  'form_13s.tab': '/data/storage/edgar/indices/form_13s.tab',
+#  'form_DEF14A.tab': '/data/storage/edgar/indices/form_DEF14A.tab',
+#  'form_8-K.tab': '/data/storage/edgar/indices/form_8-K.tab',
+#  'form_20-F.tab': '/data/storage/edgar/indices/form_20-F.tab',
+#  'form_10-K.tab': '/data/storage/edgar/indices/form_10-K.tab'}
+```
+
+These indices are accessable as a pandas dataframe via the ``get_index`` method, where the index is selected via the key above (with or without the .tab).
+
+```python
 form_10k = all_indices.get_index('form_10-K')
 
 print(form_10k.head(1))
@@ -125,6 +140,7 @@ print(config.CONFIG_FILE)
 ## Requirements
 
 w3m for converting HTML to plaintext (tested on Linux).
+A fallback method might one day be added.
 
 Tested only on Python >3.4
 
