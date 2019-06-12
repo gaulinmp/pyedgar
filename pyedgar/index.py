@@ -99,5 +99,7 @@ class EDGARIndex():
             df.rename(columns={k: v for k, v in
                                zip(self._raw_col_names, self._simple_col_names)},
                       index=str, inplace=True)
+        if 'filedate' in df:
+            df['filedate'] = pd.to_datetime(df['filedate'])
 
         return df

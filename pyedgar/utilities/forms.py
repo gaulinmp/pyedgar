@@ -122,7 +122,7 @@ def get_form(file_path, encoding=None, errors=None):
         return text
     en = RE_TEXT_TAG_CLOSE.search(text, st.end())
     if not en:
-        return text[st.end()]
+        return text[st.end():]
     return text[st.end():en.start()]
 
 def get_plaintext(path, unwrap=True, document_width=150):
@@ -271,7 +271,7 @@ def get_all_headers_dict(text, pos=0, endpos=None, starter_dict=None, **kwargs):
 
     return retdict
 
-def get_header(text, header, pos=0, endpos=None, return_match=False):
+def get_header(text, header, pos=0, endpos=None, return_match=False, return_multiple=False):
     """
     Searches `text` for header formatted <`header`>VALUE\\n and returns VALUE.strip()
     Note this requires the daily feed version of the EDGAR files.
