@@ -25,7 +25,7 @@ def get_filing_path(*args, **kwargs):
     :param args: Tries to guess cik/accession in the args passed in. cik/accession passed in by kwargs overrides these args.
     :param kwargs: dictionary to be passed to config.format_filing_path.
 
-    :return: Full path to local filing document. Equal to join(FILING_ROOT, format_filing_path(**kwargs))
+    :return: Full path to local filing document. Equal to ``join(FILING_ROOT, format_filing_path(**kwargs))``
     :rtype: string
     """
     cik = kwargs.get('cik', None)
@@ -69,7 +69,8 @@ def get_filing_path(*args, **kwargs):
     return os.path.join(config.FILING_ROOT, formatted_filename)
 
 def walk_files(root_dir, filename_regex=None, return_dirs=False):
-    """Iteratively walk directories and files, returning full paths.
+    """
+    Iteratively walk directories and files, returning full paths.
 
     :param str root_dir: The root directory at which to start searching.
     :param re filename_regex: Regular expression (or string pattern) to which
