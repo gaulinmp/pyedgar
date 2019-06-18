@@ -14,13 +14,15 @@ import datetime as dt
 from itertools import product
 
 # 3rd party imports
-import pandas as pd
+import pandas as _pd
+
+# TQDM is a simple progress bar. If it doesn't exist, pass through arguments.
 try:
-    def faketqdm(x, *args, **kwargs):
+    def _faketqdm(x, *args, **kwargs):
         return x
-    from tqdm import tqdm
+    from tqdm import tqdm as _tqdm
 except ModuleNotFoundError:
-    tqdm = faketqdm
+    _tqdm = _faketqdm
 
 
 # Module Imports
@@ -72,11 +74,11 @@ class IndexMaker():
         self._get_feed_cache_path = config.get_feed_cache_path
         self._get_index_cache_path = config.get_index_cache_path
 
-        self._tq = tqdm if use_tqdm else faketqdm
+        self._tq = _tqdm if use_tqdm else _faketqdm
 
     def extract_indexes(self):
         self._logger.warning("Downloading the quarterly indices...")
-        df = pd.DataFrame()
+        df = _pd.DataFrame()
         idx_num = (dt.date.today().year - 1994)*4
 
         for year, qtr in self._tq(product(range(1995, dt.date.today().year + 1),
@@ -97,7 +99,7 @@ class IndexMaker():
                 continue
 
             try:
-                dfi = pd.read_csv(idx_cache_file, **self.edgar_index_args)
+                dfi = _pd.read_csv(idx_cache_file, **self.edgar_index_args)
             except NotImplementedError:
                 self._logger.warning("Reading %r failed at %r Q%r",
                                      idx_cache_file, year, qtr)
@@ -107,12 +109,12 @@ class IndexMaker():
             dfi['Accession'] = dfi.Filename.str.slice(start=-24, stop=-4)
             del dfi['Filename']
 
-            df = pd.concat([df, dfi], copy=False)
+            df = _pd.concat([df, dfi], copy=False)
 
             self._logger.info("Added %r(%r) to df(%r)",
                               idx_cache_file, len(dfi), len(df))
 
-        df['Date Filed'] = pd.to_datetime(df['Date Filed'])
+        df['Date Filed'] = _pd.to_datetime(df['Date Filed'])
 
         self._logger.warning("Done downloading, extracting...")
 

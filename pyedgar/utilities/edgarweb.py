@@ -25,15 +25,15 @@ import logging
 import requests
 
 try:
-    def faketqdm(x, *args, **kwargs):
+    def _faketqdm(x, *args, **kwargs):
         return x
-    from tqdm import tqdm
+    from tqdm import tqdm as _tqdm
 except ModuleNotFoundError:
-    tqdm = faketqdm
+    _tqdm = _faketqdm
 
 
 # Constants
-# Used to be (before FPT changed to AWS S3): ftp://ftp.sec.gov
+# Used to be (before FTP changed to AWS S3): ftp://ftp.sec.gov
 EDGAR_ROOT = 'https://www.sec.gov/Archives'
 
 
@@ -141,7 +141,7 @@ class EDGARDownloader(object):
 
         use_tqdm: sets whether download progress is wrapped in tqdm.
         """
-        self._tq = tqdm if use_tqdm else faketqdm
+        self._tq = _tqdm if use_tqdm else _faketqdm
 
     def download_tar(self, remote_path, local_target, chunk_size=1024**2, retries=5, resume=True):
         """Download a file from `remote_path` to `local_target`."""

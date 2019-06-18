@@ -3,8 +3,8 @@
 """
 File for reading and setting configurations for the whole library.
 I will not pretend this config file is a good way to do things.
-But it's flexible, and works so far.
-I make no guarantees that this won't destroy your computer.
+But it is flexible, and works so far.
+I make no guarantees that this will not destroy your computer.
 
 Example config file:
 
@@ -233,6 +233,8 @@ if INDEX_DELIMITER.lower() in ('\t', '\\t', 'tab', '\\\t', '\\\\t'):
     INDEX_DELIMITER = '\t'
 
 
+
+
 # ██████╗  █████╗ ████████╗██╗  ██╗███████╗
 # ██╔══██╗██╔══██╗╚══██╔══╝██║  ██║██╔════╝
 # ██████╔╝███████║   ██║   ███████║███████╗
@@ -242,29 +244,30 @@ if INDEX_DELIMITER.lower() in ('\t', '\\t', 'tab', '\\\t', '\\\\t'):
 
 def format_filing_path(**kwargs):
     """
-    "If at first you don't succeed, don't try skydiving."
+    "If at first you don\'t succeed, don\'t try skydiving."
 
     That makes about as much sense as a docstring as the workaround below.
-    It's... horrifying what I've done here.
+    It\'s... horrifying what I\'ve done here.
     So lemme splain the what and why.
     We want a conf file that is useful for paths and whatever format you want to keep your files in on your local copy of EDGAR.
-    So to facilitate this, let's allow an f-string type FILING_PATH_FORMAT input.
-    So how to evaluate it? We can't use FILING_PATH_FORMAT.format(**kwargs) because then you can't do cik[:5] for sub-folders.
+    So to facilitate this, let\'s allow an f-string type FILING_PATH_FORMAT input.
+    So how to evaluate it? We can\'t use ``FILING_PATH_FORMAT.format(**kwargs)`` because then you can\'t do cik[:5] for sub-folders.
     Well here comes eval to the rescue! I know, eval-ing user-provided strings is TERRIBLE practice.
     Really TERRIBLE.
     Whatever. It works. I limit it to 150 characters anyway, so your injection has to be shorter than that.
 
-    LEGAL DISCLAIMER: Know where you config file is loading from. This is most definitely an injection vector.
+    LEGAL DISCLAIMER: Know where you config file is loading from. This is most definitely an attack vector.
 
-    Anyway, back to the code. The trick here is that I don't know what format the input passed in will be.
+    Anyway, back to the code. The trick here is that I don\'t know what format the input passed in will be.
     So I just take all the input (all kwargs) and load it into local.
-    Turns out this only works because of the eval statement? See: https://stackoverflow.com/a/8028785/1959876
+    Turns out this only works because of the eval statement?
+        (See: https://stackoverflow.com/a/8028785/1959876)
 
     Cool. So we put everything you pass in into the locals, to be accessed by the dynamically eval-ed f-string.
 
     Last bit is for some sanity. I force the existence of the following variables:
         cik: in int form
-        cik_str: in string form, =f'{cik:010d}'
+        cik_str: in string form, =``f'{cik:010d}'``
         accession: 20 character format with dashes
         accession18: 18 characters of only digits with dashes removed
     So you can safely define the format string using these for variables, and if you're feeling adventuresome, you can add your custom variable to the format string, then pass it into this method and it should work.

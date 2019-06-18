@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 pyEDGAR SEC data library: Utilities package
-=====================================
+======================================================
 
 These utilities represent lower level functionality, used by the main modules.
 

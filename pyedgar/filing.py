@@ -20,22 +20,27 @@ class Filing(object):
     Base class for EDGAR filing, with format aware parsing
     to provide access to filing documents as objects.
     """
-    # Every form has a CIK and accession.
+    #: Firm CIK
     _cik = None
+    #: Filing Accession
     _accession = None
-    # Set the form type, with some family hierarchy: 10s, Def 14s, etc.
+    #: The 'loose' form type, with some family hierarchy: 10s, Def 14s, etc.
     _type = None
+    #: The exact form type, extracted from the main <TYPE> tag.
     _type_exact = None
-    # Paths to local and remote filing. Set lazily.
+    #: Paths to local filing. Set lazily.
     _filing_local_path = None
+    #: Paths to remote filing. Set lazily.
     _filing_url = None
-    # Form Data (main headers)
+    #: Form Data (main headers)
     _headers = {}
+    #: Full text of the document, loaded lazily.
     _full_text = None
+    #: Array of filed exhibits, parsed lazily.
     _documents = None
-    # Object logger for logging things and stuff.
+    #: Object logger for logging things and stuff.
     __log = None
-    # Read-filing arguments
+    #: Read-filing arguments
     read_args = None
 
     def __init__(self, cik=None, accession=None, **kwargs):
@@ -43,16 +48,13 @@ class Filing(object):
         Initialization sets CIK, Accession, and optionally
         loads filing from disk.
 
-        Args:
-            cik: Numeric CIK for firm.
-            accession: Accession for filing, filed under CIK.
+        :param int,string cik: Numeric CIK for firm.
+        :param string accession: Accession for filing, filed under CIK.
                 Expected format: 0123456789-01-012345, or 012345678901012345.
 
-        Returns:
-            Filing object.
+        :returns: Filing object.
 
-        Raises:
-            None. Loading done lazily.
+        :raise: None. Loading done lazily.
         """
         self.__log = logging.getLogger('pyedgar.filing.Filing')
 
@@ -75,14 +77,11 @@ class Filing(object):
         """
         Set cik on object, verifying format is CIK-like.
 
-        Args:
-            cik: Numeric CIK for firm, either as int or string.
+        :param int,string cik: Numeric CIK for firm, either as int or string.
 
-        Returns:
-            CIK as an int.
+        :returns: CIK as an int.
 
-        Raises:
-            ValueError: if cik is not numerical (or castable to int).
+        :raise ValueError: if cik is not numerical (or castable to int).
         """
         try:
             if cik is not None:
@@ -100,14 +99,12 @@ class Filing(object):
         Expected format: 0123456789-01-012345, or 012345678901012345.
         Function converts the latter to the former.
 
-        Args:
-            accession: Accession number as a string, with format
+        :param string accession: Accession number as a string, with format
                 0123456789-01-012345, or 012345678901012345.
-        Returns:
-            The formatted Accession as a string of 20 characters.
 
-        Raises:
-            ValueError: if accession is not expected format.
+        :returns: The formatted Accession as a string of 20 characters.
+
+        :raise ValueError: if accession is not expected format.
         """
         try:
             if accession and localstore.ACCESSION_RE.search(accession):
@@ -130,13 +127,9 @@ class Filing(object):
         Full text of the filing at cik/accession.
         Lazily load the full text of the filing into memory.
 
-        Args: None
+        :returns: String representing the full text of the EDGAR filing.
 
-        Returns:
-            String representing the full text of the EDGAR filing.
-
-        Raises:
-            FileNotFoundError: The file wasn't found in the local cache.
+        :raise FileNotFoundError: The file wasn't found in the local cache.
         """
         if not self._full_text:
             try:
@@ -168,13 +161,9 @@ class Filing(object):
         Full text of the filing at cik/accession.
         Lazily load the full text of the filing into memory.
 
-        Args: None
+        :returns: String representing the full text of the EDGAR filing.
 
-        Returns:
-            String representing the full text of the EDGAR filing.
-
-        Raises:
-            FileNotFoundError: The file wasn't found in the local cache.
+        :raise FileNotFoundError: The file wasn't found in the local cache.
         """
         _t = self.headers.get('type', 'OTHER')
         self._type_exact = _t
@@ -285,18 +274,15 @@ class Filing(object):
         """
         Access exhibits (or main filing) by sequence number (1-indexed).
 
-        Args:
-            sequence_number: 1-indexed int representing the sequence
+        :param int sequence_number: 1-indexed int representing the sequence
                 of the document in the EDGAR filing. Identified using
                 the 'sequence' tag in each <DOCUMENT> element.
 
-        Returns:
-            Array of document dictionaries in the form:
-            [{search_key: search_string, 'full_text':...}, ...]
-            or None, if no document is available or sequence is not found.
+        :returns: Array of document dictionaries in the form:
+            ``[{search_key: search_string, 'full_text':...}, ...]``
+            or ``None``, if no document is available or sequence is not found.
 
-        Raises:
-            None
+        :raise: None
         """
         if not self.documents:
             return None
@@ -316,25 +302,22 @@ class Filing(object):
         """
         Search document dictionaries for `tag_name` that matches `search_string`.
         Returns array of document dictionaries that match the requirement:
-        search_string == document[tag_name], or using `regex=True`,
-        search_string.search(document['filename'])
+        ``search_string == document[tag_name]``, or using `regex=True`,
+        ``search_string.search(document['filename'])``
+\
+        :param string tag_name: dictionary key in document dicts to match against.
+        :param string search_string: string to search for in ``document[tag_name]``
+        :param string regex: Boolean signifying that search_string should use a regular
+            expression match. If search_string isn't a compiled regex
+            pattern, then compile it using flags=flags.
+        :param string flags: Optional flags to use when compiling search_string,
+            if it isn't a ``re.Pattern`` already.
 
-        Args:
-            tag_name: dictionary key in document dicts to match against.
-            search_string: string to search for in document[tag_name]
-            regex: Boolean signifying that search_string should use a regular
-                expression match. If search_string isn't a compiled regex
-                pattern, then compile it using flags=flags.
-            flags: Optional flags to use when compiling search_string,
-                if it isn't a re.Pattern already.
+        :returns: Array of document dictionaries in the form:
+            ``[{tag_name: search_string, 'full_text':...}, ...]``
+            or ``None``, if no document is available or string is not found.
 
-        Returns:
-            Array of document dictionaries in the form:
-            [{tag_name: search_string, 'full_text':...}, ...]
-            or None, if no document is available or string is not found.
-
-        Raises:
-            None
+        :raise: None
         """
         if not self.documents or not search_string or not tag_name:
             return None
