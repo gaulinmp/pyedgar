@@ -22,7 +22,10 @@ import re
 # import tarfile
 import logging
 # import datetime as dt
-import requests
+# import requests
+
+# Local logger
+_logger = logging.getLogger(__name__)
 
 try:
     def _faketqdm(x, *args, **kwargs):
@@ -110,7 +113,8 @@ def get_feed_path(date):
 
 def get_idx_path(date_or_year, quarter=None, compressed=False):
     """
-    Get URL path to quarterly index file. Don't feed it a year and no quarter.
+    Get URL path to quarterly index file.
+    Do not feed it a year and no quarter.
     """
     if quarter is None:
         quarter = _get_qtr(date_or_year)
@@ -122,6 +126,42 @@ def get_idx_path(date_or_year, quarter=None, compressed=False):
 
     return ("/edgar/full-index/{0}/QTR{1}/master.{2}"
             .format(date_or_year, quarter, 'gz' if compressed else 'idx'))
+
+def download_form_from_web(cik, accession):
+    """
+    Sometimes the cache file is not there, or you do not have local cache.
+    In those cases, you can download the EDGAR forms from S3 directly.
+
+    NOTE: None of the header parsing functionality will work because the Web
+          version of EDGAR converts the SGML header to indented plain text.
+    """
+
+    cik = int(cik)
+    try:
+        url = get_edgar_urls(int(cik), accession)[0]
+    except ValueError:
+        _logger.exception("CIK must be an integer: %r", cik)
+        raise
+
+    try:
+        r = requests.get(url)
+    except NameError:
+        # Nothing else in the library requires requests, so bury it here
+        # to minimize requirements when this method is not used
+        import requests
+        r = requests.get(url)
+
+    data = r.content
+
+    for _decode_type, _errors in zip(('latin-1', 'utf-8', 'latin-1'),
+                                     ('strict', 'strict', 'ignore')):
+        try:
+            txt = data.decode(_decode_type, errors=_errors).encode('utf-8')
+        except (UnicodeDecodeError, ValueError):
+            continue
+        break
+
+    return txt
 
 
 class EDGARDownloader(object):
