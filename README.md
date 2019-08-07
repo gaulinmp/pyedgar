@@ -137,6 +137,22 @@ print(config.CONFIG_FILE)
 #     [~]/Dropbox/config/pyedgar/hades.desb.pyedgar.conf
 ```
 
+## Install
+
+Pip installable from github:
+
+```bash
+pip install git+https://github.com/gaulinmp/pyedgar#egg=pyedgar
+```
+
+or by checking out from github and installing in editable mode:
+
+```bash
+git clone https://github.com/gaulinmp/pyedgar
+cd pyedgar
+pip install -e ./
+```
+
 ## Requirements
 
 w3m for converting HTML to plaintext (tested on Linux).
@@ -147,3 +163,4 @@ Tested only on Python >3.4
 HTML parsing tested only on Linux.
 Other HTML->text conversion methodologies were tried (html2text, BeautifulSoup, lxml) but w3m was fastest even with the subprocess calling.
 Converting multiple HTML files could probably be optimized with one instance of w3m instead of spawning a subprocess for each call.
+But that's for future Mac to work on.
