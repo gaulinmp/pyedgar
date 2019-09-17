@@ -31,9 +31,12 @@ RE_TEXT_TAG_CLOSE = re.compile('</TEXT>')
 RE_HEADER_TAG = re.compile(r'^<(?P<key>[^/][^>]*)>[ \t]*(?P<value>.+)$', re.M)
 # Matches anything like <*>*\n
 RE_HEADER_TAG_OC = re.compile(r'^<(?P<key>/?[^>]*)>(?P<value>.*)$', re.M)
+# Matches KEY: value
+RE_HEADER_TAG_PLAINTEXT = re.compile(
+    r'^(?P<indent>[ \t]*)(?P<key>[^\n\r:]+):[ \t]*(?P<value>[^\n\r]+)?$', re.M)
 
 
-def get_full_filing(file_path, encoding=None, errors=None, buffering=None):
+def get_full_filing(file_path, encoding=None, errors=None):
     """
     Returns full text of filing.
     """
@@ -43,6 +46,7 @@ def get_full_filing(file_path, encoding=None, errors=None, buffering=None):
     with open(file_path, encoding=encoding or ENCODING_INPUT,
               errors=errors or 'ignore') as fh:
         return fh.read()
+
 
 def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8,
                          encoding=None, errors=None):
@@ -108,6 +112,7 @@ def get_form_with_header(file_path, form_type=None, buff_size=(2<<16) + 8,
 
     return ret_dict
 
+
 def get_form(file_path, encoding=None, errors=None):
     """
     Reads file at file_path and returns form between <TEXT> and </TEXT> tags.
@@ -124,6 +129,7 @@ def get_form(file_path, encoding=None, errors=None):
     if not en:
         return text[st.end():]
     return text[st.end():en.start()]
+
 
 def get_plaintext(path, unwrap=True, document_width=150):
     """
@@ -156,6 +162,10 @@ def get_all_headers(text, pos=0, endpos=None, flat=False, **kwargs):
 
     `pos` and `endpos` can be used to get headers for specific exhibits.
     """
+    if "ACCESSION NUMBER:" in text[:2000]:
+        if flat:
+            return get_all_headers_flat_nosgml(text, pos=pos, endpos=endpos, **kwargs)
+        return get_all_headers_dict_nosgml(text, pos=pos, endpos=endpos, **kwargs)
     if flat:
         return get_all_headers_flat(text, pos=pos, endpos=endpos, **kwargs)
     return get_all_headers_dict(text, pos=pos, endpos=endpos, **kwargs)
@@ -178,12 +188,8 @@ def get_all_headers_flat(text, pos=0, endpos=None,
 
     Returns dictionary of headers.
     """
-    if pos == 0 and endpos is None:
-        doc_tag_open = RE_DOC_TAG_OPEN.search(text)
-        if doc_tag_open:
-            endpos = doc_tag_open.start()
     if endpos is None:
-        endpos = len(text)
+        _, endpos = _get_header_bounds(text, pos=pos)
 
     ret = {}
     for rx in RE_HEADER_TAG.finditer(text, pos, endpos):
@@ -216,6 +222,63 @@ def get_all_headers_flat(text, pos=0, endpos=None,
 
     return ret
 
+
+def get_all_headers_flat_nosgml(text, pos=0, endpos=None,
+                                omit_duplicates=True,
+                                add_int_to_name=True, **kwargs):
+    """
+    Return dictionary of all <KEY>VALUE formatted headers in EDGAR documents.
+    Note this requires the daily feed version of the EDGAR files.
+    Dictionary keys are lowercase (`.lower()` is called), and stripped.
+
+    `pos` and `endpos` can be used to get headers for specific exhibits.
+
+    Keys with the same name can either be ignored (`omit_duplicates=True`),
+    or subsequent keys with names already in dictionary can be renamed
+    by adding a count to the end (filer, filer1, etc.) if
+    `add_int_to_name=True`, or added to a list if `add_int_to_name=False`.
+
+    Returns dictionary of headers.
+    """
+    if endpos is None:
+        _, endpos = _get_header_bounds(text, pos=pos)
+
+    ret = {}
+    for rx in RE_HEADER_TAG_PLAINTEXT.finditer(text, pos, endpos):
+        _, key, val = rx.groups()
+        try:
+            key, val = _clean_plaintext_header_key(key.lower()), val.strip()
+        except AttributeError:
+            # val.strip() breaks if val is None.
+            continue
+
+        if not val:
+            continue
+
+        if key not in ret:
+            ret[key] = val
+            continue
+
+        if omit_duplicates:
+            continue
+
+        if add_int_to_name:
+            for i in range(1, 10000):
+                newkey = '{}{}'.format(key, i)
+                if newkey not in ret:
+                    key = newkey
+                    break
+            ret[key] = val
+            continue
+
+        if not isinstance(ret[key], list):
+            ret[key] = [ret[key], ]
+
+        ret[key].append(val)
+
+    return ret
+
+
 def get_all_headers_dict(text, pos=0, endpos=None, starter_dict=None, **kwargs):
     """
     Return dictionary of all <KEY>VALUE formatted headers in EDGAR documents.
@@ -224,17 +287,13 @@ def get_all_headers_dict(text, pos=0, endpos=None, starter_dict=None, **kwargs):
 
     `pos` and `endpos` can be used to get headers for specific exhibits.
     """
-    if pos == 0 and endpos is None:
-        doc_tag_open = RE_DOC_TAG_OPEN.search(text)
-        if doc_tag_open:
-            endpos = doc_tag_open.start()
-    if endpos is None:  # No <DOCUMENT> found, parse to end.
-        endpos = len(text)
+    if endpos is None:
+        _, endpos = _get_header_bounds(text, pos=pos)
 
     retdict = {}
     if starter_dict is not None:
         retdict.update(starter_dict)
-    # push and pop 'current' dictionary from stack because pointers.
+    # push and pop 'current' dictionary from stack, which works because pointers.
     stack = [retdict, ]
 
     for imatch in RE_HEADER_TAG_OC.finditer(text, pos, endpos):
@@ -271,16 +330,81 @@ def get_all_headers_dict(text, pos=0, endpos=None, starter_dict=None, **kwargs):
 
     return retdict
 
-def get_header(text, header, pos=0, endpos=None, return_match=False, return_multiple=False):
+
+def get_all_headers_dict_nosgml(text, pos=0, endpos=None, starter_dict=None, **kwargs):
+    """
+    Return dictionary of all <KEY>VALUE formatted headers in EDGAR documents.
+    Note this requires the daily feed version of the EDGAR files.
+    Dictionary keys are lowercase (`.lower()` is called), and stripped.
+
+    `pos` and `endpos` can be used to get headers for specific exhibits.
+    """
+    def newkey(key):
+        if key in stack[-1]:
+            # Then try key_X for X from 0 to 2000 I guess.
+            for key_i in range(2000):
+                newkey = '{}_{}'.format(key, key_i)
+                if newkey not in stack[-1]:
+                    return newkey
+        return key
+
+    if endpos is None:
+        _, endpos = _get_header_bounds(text, pos=pos)
+
+    retdict = {}
+    if starter_dict is not None:
+        retdict.update(starter_dict)
+    # push and pop 'current' dictionary from stack, which works because pointers.
+    stack = [retdict, ]
+
+    for imatch in RE_HEADER_TAG_PLAINTEXT.finditer(text, pos, endpos):
+        tmp = imatch.groupdict()
+        #print(f"\nStarting with {tmp}")
+        #print(f"Stack length: {len(stack)}")
+
+        indent = tmp['indent']  # empty for level 0, 1 \t for each level
+        key = _clean_plaintext_header_key(tmp['key'].lower())
+        try:
+            val = tmp['value'].strip()
+        except AttributeError:
+            val = None
+
+        if len(indent) + 1 < len(stack) and key:
+            # We've found an out-dent, drop off a level.
+            # Remove last dict from stack and make a new one if val missing
+            #print(f"Found new outdent ({key}): len({len(indent)}) + 1 < {len(stack)}")
+
+            while len(stack) > len(indent)+1:
+                stack.pop()
+                #print(f"Stack pop, new len: {len(stack)}")
+
+        if not val:
+            # We've found the start of a new indent level.
+            # Add key to the dict and push new level to stack
+            #print(f"Found new indent ({key}): val is {val}")
+            key = newkey(key)
+            stack[-1][key] = {}
+            stack.append(stack[-1][key])
+            continue
+
+        #print(f"Adding key/val {key}:{val}")
+        stack[-1][newkey(key)] = val
+
+    return retdict
+
+
+def get_header(text, header, pos=0, endpos=None,
+               return_match=False, return_multiple=False):
     """
     Searches `text` for header formatted <`header`>VALUE\\n and returns VALUE.strip()
     Note this requires the daily feed version of the EDGAR files.
 
     `pos` and `endpos` can be used to get headers for specific exhibits.
     """
-    re_tag = re.compile(r'^<{}>(.+)$'.format(header), re.M | re.I)
     if endpos is None:
-        endpos = len(text)
+        _, endpos = _get_header_bounds(text, pos=pos)
+
+    re_tag = re.compile(r'^<{}>(.+)$'.format(header), re.M | re.I)
 
     match = re_tag.search(text, pos, endpos)
     value = match.group(1).strip() if match else ''
@@ -288,6 +412,38 @@ def get_header(text, header, pos=0, endpos=None, return_match=False, return_mult
     if return_match:
         return value, match
     return value
+
+
+def _get_header_bounds(text, pos=0, endpos=None, **kwargs):
+    """
+    Return dictionary of all <KEY>VALUE formatted headers in EDGAR documents.
+    Note this requires the daily feed version of the EDGAR files.
+    Dictionary keys are lowercase (`.lower()` is called), and stripped.
+
+    `pos` and `endpos` can be used to get headers for specific exhibits.
+
+    Keys with the same name can either be ignored (`omit_duplicates=True`),
+    or subsequent keys with names already in dictionary can be renamed
+    by adding a count to the end (filer, filer1, etc.) if
+    `add_int_to_name=True`, or added to a list if `add_int_to_name=False`.
+
+    Returns dictionary of headers.
+    """
+    if endpos is None:
+        doc_tag_open = RE_DOC_TAG_OPEN.search(text, pos=pos)
+        if doc_tag_open:
+            endpos = doc_tag_open.start()
+    if endpos is None:
+        endpos = len(text)
+
+    return pos, endpos
+
+
+def _clean_plaintext_header_key(key,
+                                replace_with_dash=re.compile(r' (?![1-9])'),
+                                replace_with_empty=re.compile(r' (?=[1-9])')):
+    return replace_with_dash.sub('-', replace_with_empty.sub('', key.strip()))
+
 
 def chunk_filing(text):
     """

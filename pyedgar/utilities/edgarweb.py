@@ -22,7 +22,7 @@ import re
 # import tarfile
 import logging
 # import datetime as dt
-# import requests
+import requests
 
 # Local logger
 _logger = logging.getLogger(__name__)
@@ -143,20 +143,14 @@ def download_form_from_web(cik, accession):
         _logger.exception("CIK must be an integer: %r", cik)
         raise
 
-    try:
-        r = requests.get(url)
-    except NameError:
-        # Nothing else in the library requires requests, so bury it here
-        # to minimize requirements when this method is not used
-        import requests
-        r = requests.get(url)
+    r = requests.get(url)
 
     data = r.content
 
     for _decode_type, _errors in zip(('latin-1', 'utf-8', 'latin-1'),
                                      ('strict', 'strict', 'ignore')):
         try:
-            txt = data.decode(_decode_type, errors=_errors).encode('utf-8')
+            txt = data.decode(_decode_type, errors=_errors)
         except (UnicodeDecodeError, ValueError):
             continue
         break

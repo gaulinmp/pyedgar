@@ -9,6 +9,7 @@ Download script to download and cache feeds and indices.
 
 # Stdlib imports
 import os
+import re
 # import tarfile
 import logging
 import datetime as dt
@@ -18,10 +19,10 @@ import datetime as dt
 # Module Imports
 from pyedgar import config
 from pyedgar.utilities import edgarcache
-from pyedgar.utilities import edgarweb
-from pyedgar.utilities import forms
+# from pyedgar.utilities import edgarweb
+# from pyedgar.utilities import forms
 from pyedgar.utilities import indices
-from pyedgar.utilities import localstore
+# from pyedgar.utilities import localstore
 
 # Local logger
 _logger = logging.getLogger(__name__)
@@ -30,7 +31,9 @@ _logger = logging.getLogger(__name__)
 # Example running script. This will download past 30 days of forms and all indices.
 # run with ```python -m pyedgar.downloader --help```
 def main(start_date=None, get_indices=True, get_feeds=True, extract_feeds=True):
-    cacher = edgarcache.EDGARCacher()
+    rgx = re.compile(config.KEEP_REGEX, re.I) if not config.KEEP_ALL else None
+    _logger.info("From Config: keep regex: %r", rgx)
+    cacher = edgarcache.EDGARCacher(keep_form_type_regex=rgx)
 
     if start_date is None:
         start_date = dt.date.fromordinal(dt.date.today().toordinal()-30)

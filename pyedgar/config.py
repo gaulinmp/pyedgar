@@ -13,17 +13,24 @@ Example config file:
 ; Root directories, under which filings/cached tarballs will be found
 ; There is no % interpolation
 
+; CACHE_FEED indicates whether the feed should be cached/searched locally
+CACHE_FEED = True
+
 ; FILING_ROOT is the root of the extracted filings
 FILING_ROOT=/data/bulk/data/edgar/filings/
 
 ; FEED_CACHE_ROOT is the root of the compressed daily feed files from EDGAR
 FEED_CACHE_ROOT=/data/bulk/data/edgar/raw_from_edgar/compressed_daily_feeds/
 
+; CACHE_INDEX indicates whether the index should be cached/searched locally
+CACHE_INDEX = True
+
 ; INDEX_ROOT is the root of the extracted index tab-delimited files
 INDEX_ROOT=/data/bulk/data/edgar/indices/
 
 ; INDEX_CACHE_ROOT is the root of the
 INDEX_CACHE_ROOT=/data/bulk/data/edgar/raw_from_edgar/indices/
+
 
 ; FILING_PATH_FORMAT is the string to be .format-ed with the CIK and ACCESSION of the filing
 ; Maximum length is 150 characters.
@@ -72,12 +79,13 @@ INDEX_FILE_COMPRESSION=gzip
 
 
 # STDlib imports
+import os
+import re
+import logging
+import tempfile
 import configparser
 import datetime as dt
 from itertools import product, starmap
-import logging
-import os
-import re
 
 # 3rd party imports
 
@@ -165,12 +173,15 @@ def get_config_file(extra_dirs=None):
     # getting here means we didn't find the file
     return None
 
+_tmp_dir = os.path.join(tempfile.gettempdir(), 'pyedgar')
 
 _defaults = {
-    'FILING_ROOT': '/data/bulk/data/edgar/filings/',
-    'FEED_CACHE_ROOT': '/data/bulk/data/edgar/raw_from_edgar/compressed_daily_feeds/',
-    'INDEX_ROOT': '/data/bulk/data/edgar/indices/',
-    'INDEX_CACHE_ROOT': '/data/bulk/data/edgar/raw_from_edgar/indices/',
+    'FILING_ROOT': os.path.join(_tmp_dir, 'filings'),
+    'FEED_CACHE_ROOT': os.path.join(_tmp_dir, 'compressed_daily_feeds'),
+    'CACHE_FEED': False,
+    'INDEX_ROOT': os.path.join(_tmp_dir, 'indices'),
+    'INDEX_CACHE_ROOT': os.path.join(_tmp_dir, 'indices'),
+    'CACHE_INDEX': False,
     'FILING_PATH_FORMAT': '{accession[11:13]}/{accession}.nc',
     'FEED_CACHE_PATH_FORMAT': 'sec_daily_{date:%Y-%m-%d}.tar.gz',
     'INDEX_CACHE_PATH_FORMAT': 'full_index_{year}_Q{quarter}.gz',
@@ -212,8 +223,10 @@ except Exception:
 #  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 
 # Paths section
+CACHE_FEED = CONFIG_OBJECT.getboolean('Paths', 'CACHE_FEED')
 FILING_ROOT = CONFIG_OBJECT.get('Paths', 'FILING_ROOT')
 FEED_CACHE_ROOT = CONFIG_OBJECT.get('Paths', 'FEED_CACHE_ROOT')
+CACHE_INDEX = CONFIG_OBJECT.getboolean('Paths', 'CACHE_INDEX')
 INDEX_ROOT = CONFIG_OBJECT.get('Paths', 'INDEX_ROOT')
 INDEX_CACHE_ROOT = CONFIG_OBJECT.get('Paths', 'INDEX_CACHE_ROOT')
 FILING_PATH_FORMAT = CONFIG_OBJECT.get('Paths', 'FILING_PATH_FORMAT')
