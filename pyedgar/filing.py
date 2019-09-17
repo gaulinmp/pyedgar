@@ -188,9 +188,9 @@ class Filing(object):
             self.__log.debug("Full filing text missing or not found!")
             return None
         if set_flat:
-            self._headers = forms.get_all_headers_flat(self.full_text)
+            self._headers = forms.get_all_headers(self.full_text, flat=True)
         if set_hierarchical:
-            self._headers.update(forms.get_all_headers_dict(self.full_text))
+            self._headers.update(forms.get_all_headers(self.full_text), flat=False)
 
         return self._headers
 
@@ -205,7 +205,7 @@ class Filing(object):
         Raises
             ileNotFoundError: The file wasn't found in the local cache.
         """
-        _t = self.headers.get('type', 'OTHER')
+        _t = self.headers.get('type', self.headers.get('conformed-submission-type', 'OTHER'))
         self._type_exact = _t
 
         self._type = 'other'
