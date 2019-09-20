@@ -81,10 +81,10 @@ print(all_indices.indices)
 #  'form_10-K.tab': '/data/storage/edgar/indices/form_10-K.tab'}
 ```
 
-These indices are accessable as a pandas dataframe via the ``get_index`` method, where the index is selected via the key above (with or without the .tab).
+These indices are accessible as a pandas dataframe via [] or the ``get_index`` method, where the index is selected via the key above (with or without the form_ or .tab).
 
 ```python
-form_10k = all_indices.get_index('form_10-K')
+form_10k = all_indices['10-K']
 
 print(form_10k.head(1))
 # Output:
@@ -95,7 +95,7 @@ print(form_10k.head(1))
 To get a type of form that isn't automatically extracted, you can use form_all:
 
 ```python
-df_s1 = EDGARIndex().get_index('form_all').query("form.str.startswith('S-1')")
+df_s1 = EDGARIndex().get_index('all').query("form.str.startswith('S-1')")
 
 print(df_s1.head(1))
 # Output:

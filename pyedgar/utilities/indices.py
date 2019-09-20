@@ -64,9 +64,6 @@ class IndexMaker():
 
         use_tqdm: flag for whether or not to wrap downloads in tqdm for progress monitoring
         """
-        # Use the following to default to 10s, 20s, 8s, 13s, and Def 14As.
-        # if keep_form_type_regex is None:
-        #    re.compile(r'10-[KQ]|10[KQ]SB|20-F|8-K|13[FDG]|(?:14A$)')
 
         self._downloader = edgarcache.EDGARCacher(use_tqdm=use_tqdm)
 
@@ -76,13 +73,23 @@ class IndexMaker():
 
         self._tq = _tqdm if use_tqdm else _faketqdm
 
-    def extract_indexes(self):
+    def extract_indexes(self, start_year=None, stop_year=None):
         self._logger.warning("Downloading the quarterly indices...")
         df = _pd.DataFrame()
-        idx_num = (dt.date.today().year - 1994)*4
+        try:
+            start_year = int(start_year)
+        except (ValueError, TypeError):
+            start_year = 1995
+        try:
+            stop_year = int(stop_year)
+        except (ValueError, TypeError):
+            stop_year = dt.date.today().year
 
-        for year, qtr in self._tq(product(range(1995, dt.date.today().year + 1),
-                                         range(1, 5)), total=idx_num):
+        idx_num = (start_year - 1994)*4
+
+        for year, qtr in self._tq(product(range(start_year, stop_year + 1),
+                                          range(1, 5)),
+                                  total=idx_num):
             qtr_dt = dt.date(year, qtr*3, 1)
 
             self._logger.info("\n\tFor %rQ%r (%r) downloading...",

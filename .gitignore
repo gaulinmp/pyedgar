@@ -1,5 +1,8 @@
 # Project specific excludes
 .vscode/
+nc_examples/
+docs/
+*.pyedgar.conf
 
 
 # Byte-compiled / optimized / DLL files

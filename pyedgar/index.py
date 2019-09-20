@@ -38,7 +38,6 @@ class EDGARIndex():
     """
 
     # Class variables
-    indices = None
     simplify_col_names = None
 
     # Private class variables
@@ -54,10 +53,28 @@ class EDGARIndex():
         use_tqdm: flag for whether or not to wrap downloads in tqdm for progress monitoring
         """
         self._tq = tqdm if use_tqdm else faketqdm
-        self.indices = self.search_for_indices()
         self.simplify_col_names = simplify_col_names
 
+
+    @property
+    def indices(self):
+        """
+        Search for all indices, return dict of all found.
+        """
+        return self.search_for_indices()
+
     def search_for_indices(self, fname_regex=None):
+        """
+        Search `config.INDEX_ROOT` for all index files, identified by
+        `config.INDEX_EXTENSION`.
+
+        Args:
+            fname_regex (re): Regex to use to match against file names to find
+                index files.
+
+        Returns:
+            dict: Dictionary of all found index files, as `{filename:fullpath,}`
+        """
         idx_root = config.INDEX_ROOT
         indices = dict()
 
@@ -87,6 +104,13 @@ class EDGARIndex():
         except KeyError:
             pass
 
+        # Last try to see if they omitted 'form' and the extension
+        try:
+            try_lookup = 'form_{}.{}'.format(index_name_or_path, config.INDEX_EXTENSION)
+            return self.load_index(self.indices[try_lookup])
+        except KeyError:
+            pass
+
         # Then maybe they asked for a path
         return self.load_index(index_name_or_path)
 
@@ -103,3 +127,16 @@ class EDGARIndex():
             df['filedate'] = pd.to_datetime(df['filedate'])
 
         return df
+
+    def __getitem__(self, key):
+        """
+        Allow for dict-type lookup of indexes::
+
+            idx = EDGARIndex()
+            idx['10-K']
+        """
+        try:
+            return self.get_index(key)
+        except FileNotFoundError:
+            raise KeyError("No index found at key {}. Indices found: {}",
+                           key, list(self.indices.keys()))
