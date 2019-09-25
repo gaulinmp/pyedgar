@@ -13,7 +13,7 @@ Files from the SEC reside at https://www.sec.gov/Archives/edgar/data/CIK/ACCESSI
 """
 
 __title__ = 'pyedgar'
-__version__ = '0.0.5'
+__version__ = '0.1.0'
 __version_info__ = tuple(int(i) for i in __version__.split("."))
 __author__ = 'Mac Gaulin'
 __license__ = 'MIT'
@@ -21,6 +21,9 @@ __copyright__ = 'Copyright 2019 Mac Gaulin'
 
 
 # Include sub-modules
+from pyedgar.filing import Filing
+from pyedgar.index import EDGARIndex
+
 # from pyedgar import utilities
 # from pyedgar import exceptions
 # from .exceptions import (InputTypeError, WrongFormType,

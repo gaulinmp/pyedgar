@@ -90,7 +90,7 @@ class EDGARIndex():
 
         return indices
 
-    def get_index(self, index_name_or_path, shorten_col_names=True):
+    def get_index(self, index_name_or_path):
         # Assume they passed in the filing name, which is a key in self.indices
         try:
             return self.load_index(self.indices[index_name_or_path])

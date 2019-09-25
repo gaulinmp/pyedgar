@@ -14,7 +14,7 @@ There are two primary interfaces to this library, namely filings and indices.
 Simple example:
 
 ```python
-from pyedgar.filing import Filing
+from pyedgar import Filing
 f = Filing(20, '0000893220-96-000500')
 
 print(f)
@@ -67,7 +67,7 @@ The indices are created in [pyedgar.utilities.indices](pyedgar/utilities/indices
 Once these indices are created, you can view them via the ``indices`` property:
 
 ```python
-from pyedgar.index import EDGARIndex
+from pyedgar import EDGARIndex
 all_indices = EDGARIndex()
 
 print(all_indices.indices)
