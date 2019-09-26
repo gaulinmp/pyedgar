@@ -144,7 +144,13 @@ print(config.CONFIG_FILE)
 
 ## Install
 
-Pip installable from github:
+Pip installable:
+
+```bash
+pip install pyedgar
+```
+
+Or pip installable from github:
 
 ```bash
 pip install git+https://github.com/gaulinmp/pyedgar#egg=pyedgar
