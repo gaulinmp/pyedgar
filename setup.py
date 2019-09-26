@@ -21,14 +21,10 @@ with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 # Get the version from pyedgar/__init__.py
-_version_re = re.compile(r'^__version__\s*=\s*(.*)$', re.M)
+_version_re = re.compile(r'^__version__\s*=\s*[\'"](.*)[\'"]\s*$', re.M)
 
 with open('pyedgar/__init__.py', 'r') as fh:
-    version_re = _version_re.search(fh.read())
-    if version_re:
-        version = version_re.group(1)
-    else:
-        version = "0.0.0dev1"
+    version = _version_re.search(fh.read()).group(1).strip()
 
 setup(
     name='pyedgar',
@@ -57,8 +53,7 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
     ],
-
-    packages=['pyedgar',],
+    packages=find_packages(),
     install_requires=[],
     extras_require={
         'dev': ['bs4'],
