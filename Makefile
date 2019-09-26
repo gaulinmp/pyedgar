@@ -2,7 +2,8 @@ PY?=python3
 TWINE?=$(PY) -m twine
 
 BASEDIR=$(CURDIR)
-OUTPUTDIR=$(BASEDIR)/dist $(BASEDIR)/build
+OUTPUTDIR=$(BASEDIR)/dist
+BUILDDIR=$(BASEDIR)/build
 
 TEST_URL=light
 
@@ -28,6 +29,7 @@ upload: dist
 
 clean:
 	[ ! -d $(OUTPUTDIR) ] || rm -rf $(OUTPUTDIR)
+	[ ! -d $(BUILDDIR) ] || rm -rf $(BUILDDIR)
 
 
 # echo '   example args [PORT=8000]'
