@@ -31,6 +31,7 @@ setup(
     version=version,
     description='Python interface to EDGAR filings.',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     keywords='SEC EDGAR filings',
     url='https://github.com/gaulinmp/pyedgar',
     author='Mac Gaulin',
@@ -54,6 +55,7 @@ setup(
         'Programming Language :: Python :: 3.7',
     ],
     packages=find_packages(),
+    include_package_data=True,
     install_requires=[],
     extras_require={
         'dev': ['bs4'],
