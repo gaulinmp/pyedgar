@@ -116,7 +116,8 @@ def get_preferred_config_location(check_existing=True):
         os.path.expanduser("~/Library/Preferences/pyedgar"),
         os.path.expanduser("~/.config/"),
         os.path.expanduser("~/"),
-        package_path,
+        os.path.expanduser("~/Documents/"),
+        # package_path, # Don't default to a conf file, default to the python below
     ]
 
     for _d in _dirs:
@@ -151,7 +152,7 @@ def get_config_file(extra_dirs=None):
         os.path.expanduser("~/.config/"),
         os.path.expanduser("~/"),
         os.path.expanduser("~/Documents/"),
-        package_path,
+        # package_path, # Don't default to a conf file, default to the python below
     ]
 
     if extra_dirs:
