@@ -3,7 +3,7 @@
 """
 Use indices from EDGAR index files.
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
@@ -15,12 +15,6 @@ import logging
 
 # 3rd party imports
 import pandas as pd
-try:
-    def faketqdm(x, *args, **kwargs):
-        return x
-    from tqdm import tqdm
-except ModuleNotFoundError:
-    tqdm = faketqdm
 
 
 # Module Imports
@@ -41,19 +35,21 @@ class EDGARIndex():
     simplify_col_names = None
 
     # Private class variables
-    _tq = None
     _logger = logging.getLogger(__name__)
     _simple_col_names = ('cik', 'name', 'form', 'filedate', 'accession')
     _raw_col_names = ('CIK', 'Company Name', 'Form Type', 'Date Filed', 'Accession')
 
-    def __init__(self, simplify_col_names=True, use_tqdm=True):
+    def __init__(self, simplify_col_names=True, force_download=False, use_tqdm=True):
         """
         Initialize the index making object.
 
         use_tqdm: flag for whether or not to wrap downloads in tqdm for progress monitoring
         """
-        self._tq = tqdm if use_tqdm else faketqdm
         self.simplify_col_names = simplify_col_names
+        if force_download:
+            from pyedgar.utilities.indices import IndexMaker
+            idx = IndexMaker(use_tqdm=use_tqdm)
+            idx.extract_indexes()
 
 
     @property
@@ -83,7 +79,7 @@ class EDGARIndex():
 
         for _file in os.listdir(idx_root):
             matches = fname_regex.search(_file)
-            self._logger.info("Found %r which %r an index file.",
+            self._logger.debug("Found %r which %r an index file.",
                               _file, 'matches' if matches else 'does not match')
             if matches:
                 indices[_file] = os.path.join(idx_root, _file)
