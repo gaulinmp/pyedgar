@@ -2,7 +2,7 @@
 """
 Base class for EDGAR filing.
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
@@ -27,6 +27,8 @@ class Filing(object):
     _accession = None
     #: Whether filings are cached locally, or to get them from EDGAR
     _local_cache = False
+    #: If filing is not found, fallback to downloading from the web.
+    _web_fallback = True
     #: The 'loose' form type, with some family hierarchy: 10s, Def 14s, etc.
     _type = None
     #: The exact form type, extracted from the main <TYPE> tag.
@@ -46,7 +48,8 @@ class Filing(object):
     #: Read-filing arguments
     read_args = None
 
-    def __init__(self, cik=None, accession=None, **kwargs):
+    def __init__(self, cik=None, accession=None,
+                 use_cache=None, web_fallback=True, **kwargs):
         """
         Initialization sets CIK, Accession, and optionally
         loads filing from disk.
@@ -55,6 +58,10 @@ class Filing(object):
             cik (int,str): Numeric CIK for firm.
             accession (str): Accession for filing, filed under CIK.
                 Expected format: 0123456789-01-012345, or 012345678901012345.
+            use_cache (bool): Use the local cache at `config.FEED_CACHE_ROOT`,
+                default to `config.CACHE_FEED`.
+            web_fallback (bool): When FileNotFoundError is raised, try
+                `edgarweb.download_form_from_web` instead.
 
         Returns:
             Filing object.
@@ -67,7 +74,8 @@ class Filing(object):
         self._set_cik(cik)
         self._set_accession(accession)
 
-        self._local_cache = config.CACHE_FEED
+        self._local_cache = use_cache if use_cache is not None else config.CACHE_FEED
+        self._web_fallback = web_fallback
 
         self.read_args = kwargs
 
@@ -140,14 +148,15 @@ class Filing(object):
         """
         Full text of the filing at cik/accession.
         Lazily load the full text of the filing into memory.
-
-        TODO: Handle non-SGML headers (e.g. from S3)
+        Use cache if `self._local_cache`, and fall back to EDGAR website
+        if `self._web_fallback`.
 
         Returns:
             String representing the full text of the EDGAR filing.
 
         Raises:
-            FileNotFoundError: The file wasn't found in the local cache.
+            FileNotFoundError: The file wasn't found in the local cache if
+                `self._local_cache`.
         """
         if not self._full_text:
             self.__log.debug("Local cache: %r", self._local_cache)
@@ -156,15 +165,18 @@ class Filing(object):
                 try:
                     self._full_text = forms.get_full_filing(
                         self.path, **self.read_args)
+                    return self._full_text
                 except FileNotFoundError:
                     msg = ("Filing not found for CIK:{} / Accession:{}"
                         .format(self.cik, self.accession))
                     self.__log.debug(msg)
-                    raise FileNotFoundError(msg)
-            else:
-                self.__log.debug("Local cache else: %r", self._local_cache)
-                self._full_text = edgarweb.download_form_from_web(
-                    self.cik, self.accession)
+                    if not self._web_fallback:
+                        raise FileNotFoundError(msg)
+
+            self.__log.debug("Downloading from EDGAR web: %d/%s",
+                             self.cik, self.accession)
+            self._full_text = edgarweb.download_form_from_web(self.cik,
+                                                              self.accession)
 
         return self._full_text
 
