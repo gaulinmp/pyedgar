@@ -4,7 +4,7 @@ General utilities for interacting with plaintext documents.
 
 EDGAR document specification details: https://www.sec.gov/info/edgar/pdsdissemspec051310.pdf
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
@@ -32,25 +32,25 @@ def find_newlines(text, pos=0, endpos=-1):
 
 
 def get_linestats(line, expected_line_length):
-        r = {'line': line.rstrip()}
-        r['line_strip'] = r['line'].lstrip()
+    r = {'line': line.rstrip()}
+    r['line_strip'] = r['line'].lstrip()
 
-        r['linelen'] = len(r['line'])
-        r['textlen'] = len(r['line_strip'])
-        r['space_left'] = r['linelen'] - r['textlen']
-        r['space_right'] = expected_line_length - r['linelen']
+    r['linelen'] = len(r['line'])
+    r['textlen'] = len(r['line_strip'])
+    r['space_left'] = r['linelen'] - r['textlen']
+    r['space_right'] = expected_line_length - r['linelen']
 
-        r['num_internal_spaces'] = len(_re_space.findall(r['line_strip']))
-        r['num_internal_spacing'] = len(_re_spaces_2plus.findall(r['line_strip']))
-        r['len_internal_spacing'] = sum(len(s) for s in
-                                        _re_spaces_2plus.findall(r['line_strip']))
-        r['num_tokens'] = len(r['line_strip'].split())
-        r['num_numbers'] = sum(1 for _ in _re_number.finditer(r['line']))
-        r['tok_sp_ratio'] = r['num_tokens'] / r['num_internal_spaces'] \
-                            if r['num_internal_spaces'] else 0
-        r['length_right_ratio'] = r['linelen'] / expected_line_length
+    r['num_internal_spaces'] = len(_re_space.findall(r['line_strip']))
+    r['num_internal_spacing'] = len(_re_spaces_2plus.findall(r['line_strip']))
+    r['len_internal_spacing'] = sum(len(s) for s in
+                                    _re_spaces_2plus.findall(r['line_strip']))
+    r['num_tokens'] = len(r['line_strip'].split())
+    r['num_numbers'] = sum(1 for _ in _re_number.finditer(r['line']))
+    r['tok_sp_ratio'] = r['num_tokens'] / r['num_internal_spaces'] \
+                        if r['num_internal_spaces'] else 0
+    r['length_right_ratio'] = r['linelen'] / expected_line_length
 
-        return r
+    return r
 
 def unwrap_plaintext(text, expected_line_length=None):
     splitlines = text.split('\n')

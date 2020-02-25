@@ -5,7 +5,7 @@ pyEDGAR SEC data library: Utilities package
 
 These utilities represent lower level functionality, used by the main modules.
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 

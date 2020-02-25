@@ -12,7 +12,7 @@ EDGAR FTP change in 2016:
 
 EDGAR HTML specification: https://www.sec.gov/info/edgar/ednews/edhtml.htm
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 

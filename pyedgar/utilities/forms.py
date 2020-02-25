@@ -2,7 +2,7 @@
 """
 Utilities for interacting with edgar forms.
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
@@ -157,7 +157,8 @@ def get_all_headers(text, pos=0, endpos=None, flat=False, **kwargs):
     SGML tags are nested dictionaries, or flat, where multiple keys
     are either ignored, renamed, or put in a list (see `get_all_headers_flat`).
 
-    Note: this requires the daily feed version of the EDGAR files.
+    Note: this works on either SGML headers or formatted, web version headers.
+
     Dictionary keys are lowercase (`.lower()` is called), and stripped.
 
     `pos` and `endpos` can be used to get headers for specific exhibits.

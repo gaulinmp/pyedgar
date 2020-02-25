@@ -8,16 +8,16 @@ data sources, primarily the EDGAR distribution system.
 
 Files from the SEC reside at https://www.sec.gov/Archives/edgar/data/CIK/ACCESSION.txt
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
 __title__ = 'pyedgar'
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 __version_info__ = tuple(int(i) for i in __version__.split("."))
 __author__ = 'Mac Gaulin'
 __license__ = 'MIT'
-__copyright__ = 'Copyright 2019 Mac Gaulin'
+__copyright__ = 'Copyright 2020 Mac Gaulin'
 
 
 # Include sub-modules

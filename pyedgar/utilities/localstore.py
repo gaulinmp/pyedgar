@@ -2,7 +2,7 @@
 """
 Utilities for general EDGAR website tasks.
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 import os

@@ -11,7 +11,7 @@ URL Change in 2016:
   <2016 ftp URL: ftp://ftp.sec.gov/edgar/data/2098/0000002098-96-000003.txt
   >2016 http URL: https://www.sec.gov/Archives/edgar/data/2098/0000002098-96-000003.txt
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 

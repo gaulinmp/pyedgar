@@ -72,7 +72,7 @@ INDEX_FILE_COMPRESSION=gzip
 ; INDEX_FILE_COMPRESSION=
 ```
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
@@ -199,13 +199,13 @@ _logger.info("Config file to be loaded: %r", CONFIG_FILE)
 CONFIG_OBJECT = configparser.ConfigParser(interpolation=None, defaults=_defaults)
 try:
     CONFIG_OBJECT.read(CONFIG_FILE)
-    _logger.warning("Loaded config file from %r. \n\n"
+    _logger.info("Loaded config file from %r. \n\n"
                      "ALERT!!!! FILING_PATH_FORMAT is %r.\n",
                      CONFIG_FILE,
                      CONFIG_OBJECT.get('Paths', 'FILING_PATH_FORMAT', fallback=None))
 except TypeError:
     # Type error means that we tried to read from None file
-    _logger.warning("Error reading config file: %r", CONFIG_FILE)
+    _logger.info("Error reading config file: %r", CONFIG_FILE)
     # Come on python... how does a nonexistent section not drop through to DEFAULT?!
     for sec in ('Paths', 'Downloader', 'Index'):
         CONFIG_OBJECT.add_section(sec)

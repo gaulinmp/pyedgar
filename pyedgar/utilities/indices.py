@@ -3,7 +3,7 @@
 """
 Download and extract indices from EDGAR index files.
 
-:copyright: © 2019 by Mac Gaulin
+:copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
