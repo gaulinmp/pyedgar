@@ -48,7 +48,7 @@ print(f.documents[0]['full_text'][:800])
 #     (State or other jurisdiction of         (I.R.S. Employer Identification No.)
 ```
 
-The forms are loaded lazily, so only when you request the data is the file read from disk.
+The forms are loaded lazily, so only when you request the data is the file read from disk or downloaded from the EDGAR website.
 Filing objects have the following properties:
 
 * ``path``: path to cached filing on disk
@@ -64,11 +64,11 @@ Filing objects have the following properties:
 ### index.py
 [index.py](pyedgar/index.py) is the main module for accessing extracted EDGAR indices.
 The indices are created in [pyedgar.utilities.indices](pyedgar/utilities/indices.py#L34) by the IndexMaker class.
-Once these indices are created, you can view them via the ``indices`` property:
+Once these indices are created (which you can do by setting ``force_download=True``), you can view them via the ``indices`` property:
 
 ```python
 from pyedgar import EDGARIndex
-all_indices = EDGARIndex()
+all_indices = EDGARIndex(force_download=False)
 
 print(all_indices.indices)
 # Output:
