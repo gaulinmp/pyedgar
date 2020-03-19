@@ -123,7 +123,7 @@ Config files named ``pyedgar.conf``, ``.pyedgar``, ``pyedgar.ini`` are searched 
 10. ``os.path.abspath(os.path.dirname(__file__))`` <-- directory of the package. Default package ships with this existing.
 
 
-See the [example config file](pyedgar.conf) for commented config settings.
+See the [example config file](pyedgar/pyedgar.conf) for commented config settings.
 
 Running multiple configs is quite easy, by setting ``os.environ`` manually:
 
