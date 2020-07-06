@@ -65,17 +65,13 @@ KEEP_REGEX=
 ; Index file settings
 INDEX_DELIMITER=\t
 ; Index file extension
-INDEX_EXTENSION=tab
-; Compress the index files? Compression parameter is passed to pandas to_csv(compression=INDEX_FILE_COMPRESSION)
-INDEX_FILE_COMPRESSION=gzip
-; To not use gzip compression, uncomment the following:
-; INDEX_FILE_COMPRESSION=
+; If you want to compress the index files, change INDEX_EXTENSION to .tab.gz
+INDEX_EXTENSION=tab.gz
 ```
 
 :copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
-
 
 
 # STDlib imports
@@ -99,60 +95,58 @@ _logger = logging.getLogger(__name__)
 # ╚██████╗╚██████╔╝██║ ╚████║██║     ██║╚██████╔╝    ██║     ██║███████╗███████╗
 #  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝ ╚═════╝     ╚═╝     ╚═╝╚══════╝╚══════╝
 
-def get_preferred_config_location(check_existing=True):
-    if check_existing:
-        config_file = get_config_file()
-        if config_file:
-            return config_file
-
-    package_path = os.path.abspath(os.path.dirname(__file__))
-
-    _name = 'pyedgar.conf'
-
-    _dirs = [
-        os.path.expanduser("~/.config/pyedgar"),
-        os.path.expanduser("~/AppData/Local/pyedgar"),
-        os.path.expanduser("~/AppData/Roaming/pyedgar"),
-        os.path.expanduser("~/Library/Preferences/pyedgar"),
-        os.path.expanduser("~/.config/"),
-        os.path.expanduser("~/"),
-        os.path.expanduser("~/Documents/"),
-        # package_path, # Don't default to a conf file, default to the python below
-    ]
-
-    for _d in _dirs:
-        if os.path.exists(_d) or os.path.exists(os.path.dirname(_d)):
-            break
-
-    return os.path.join(_d, _name)
+PREFERRED_CONFIG_DIRECTORIES = [
+    os.path.abspath(os.curdir),
+    os.path.expanduser("~/.config/pyedgar"),
+    os.path.expanduser("~/AppData/Local/pyedgar"),
+    os.path.expanduser("~/AppData/Roaming/pyedgar"),
+    os.path.expanduser("~/Library/Preferences/pyedgar"),
+    os.path.expanduser("~/.config"),
+    os.path.expanduser("~"),
+    os.path.expanduser("~/Documents"),
+]
 
 
 def get_config_file(extra_dirs=None):
+    """Searches the expected config paths and names, returning the first found.
+
+    First, try and load directory location from environmental variable `PYEDGAR_CONF`
+    if it points to a specific file.
+
+    Directories searched, in order:
+
+    #. `os.environ['PYEDGAR_CONF']` (could be directory path as well)
+    #. `.` (current dir)
+    #. `~/.config/pyedgar/`
+    #. `~/AppData/Local/pyedgar/`
+    #. `~/AppData/Roaming/pyedgar/`
+    #. `~/Library/Preferences/pyedgar/`
+    #. `~/.config/`
+    #. `~/`
+    #. `~/Documents/`
+
+    For each of those directories, the following file names are looked for:
+
+    #. `pyedgar.conf`
+    #. `.pyedgar`
+    #. `pyedgar.ini`
+
+    The first one of these combinations that is found is read and returned.
+    """
 
     try:
-        with open(os.environ["PYEDGAR_CONF"], 'r') as fh:
+        with open(os.environ["PYEDGAR_CONF"], "r") as fh:
             config_txt = fh.read()
             if config_txt:
                 return os.environ["PYEDGAR_CONF"]
     except (KeyError, FileNotFoundError):
         pass
 
-
-    package_path = os.path.abspath(os.path.dirname(__file__))
-
-    _names = ['pyedgar.conf', '.pyedgar', 'pyedgar.ini']
+    _names = ["pyedgar.conf", ".pyedgar", "pyedgar.ini"]
 
     _dirs = [
-        os.environ.get("PYEDGAR_CONF", '.'),
-        os.curdir,
-        os.path.expanduser("~/.config/pyedgar"),
-        os.path.expanduser("~/AppData/Local/pyedgar"),
-        os.path.expanduser("~/AppData/Roaming/pyedgar"),
-        os.path.expanduser("~/Library/Preferences/pyedgar"),
-        os.path.expanduser("~/.config/"),
-        os.path.expanduser("~/"),
-        os.path.expanduser("~/Documents/"),
-        # package_path, # Don't default to a conf file, default to the python below
+        os.environ.get("PYEDGAR_CONF", "."),  # env variable might point to dir not file
+        *PREFERRED_CONFIG_DIRECTORIES,
     ]
 
     if extra_dirs:
@@ -164,33 +158,34 @@ def get_config_file(extra_dirs=None):
     config_txt = None
     for fpath in starmap(os.path.join, product(_dirs, _names)):
         try:
-            with open(fpath, 'r') as fh:
+            with open(fpath, "r") as fh:
                 config_txt = fh.read()
                 if config_txt:
                     return fpath
-        except IOError:
+        except (IOError, FileNotFoundError):
             pass
 
     # getting here means we didn't find the file
     return None
 
-_tmp_dir = os.path.join(tempfile.gettempdir(), 'pyedgar')
+
+_tmp_dir = os.path.join(tempfile.gettempdir(), "pyedgar")
 
 _defaults = {
-    'FILING_ROOT': os.path.join(_tmp_dir, 'filings'),
-    'FEED_CACHE_ROOT': os.path.join(_tmp_dir, 'compressed_daily_feeds'),
-    'CACHE_FEED': "False",
-    'INDEX_ROOT': os.path.join(_tmp_dir, 'indices'),
-    'INDEX_CACHE_ROOT': os.path.join(_tmp_dir, 'indices'),
-    'CACHE_INDEX': "False",
-    'FILING_PATH_FORMAT': '{accession[11:13]}/{accession}.nc',
-    'FEED_CACHE_PATH_FORMAT': 'sec_daily_{date:%Y-%m-%d}.tar.gz',
-    'INDEX_CACHE_PATH_FORMAT': 'full_index_{year}_Q{quarter}.gz',
-    'KEEP_ALL': "True",
-    'KEEP_REGEX': '',
-    'INDEX_DELIMITER': '\t',
-    'INDEX_EXTENSION': 'tab',
-    'INDEX_FILE_COMPRESSION': '',
+    "FILING_ROOT": os.path.join(_tmp_dir, "filings"),
+    "FEED_CACHE_ROOT": os.path.join(_tmp_dir, "compressed_daily_feeds"),
+    "CACHE_FEED": "False",
+    "INDEX_ROOT": os.path.join(_tmp_dir, "indices"),
+    "INDEX_CACHE_ROOT": os.path.join(_tmp_dir, "indices"),
+    "CACHE_INDEX": "False",
+    "FILING_PATH_FORMAT": "{accession[11:13]}/{accession}.nc",
+    "FEED_CACHE_PATH_FORMAT": "sec_daily_{date:%Y-%m-%d}.tar.gz",
+    "INDEX_CACHE_PATH_FORMAT": "full_index_{year}_Q{quarter}.gz",
+    "KEEP_ALL": "True",
+    "KEEP_REGEX": "",
+    "INDEX_DELIMITER": "\t",
+    "INDEX_EXTENSION": "tab",
+    "INDEX_FILE_COMPRESSION": "",
 }
 
 CONFIG_FILE = get_config_file()
@@ -199,21 +194,20 @@ _logger.info("Config file to be loaded: %r", CONFIG_FILE)
 CONFIG_OBJECT = configparser.ConfigParser(interpolation=None, defaults=_defaults)
 try:
     CONFIG_OBJECT.read(CONFIG_FILE)
-    _logger.info("Loaded config file from %r. \n\n"
-                     "ALERT!!!! FILING_PATH_FORMAT is %r.\n",
-                     CONFIG_FILE,
-                     CONFIG_OBJECT.get('Paths', 'FILING_PATH_FORMAT', fallback=None))
+    _logger.info(
+        "Loaded config file from %r. \n\n" "ALERT!!!! FILING_PATH_FORMAT is %r.\n",
+        CONFIG_FILE,
+        CONFIG_OBJECT.get("Paths", "FILING_PATH_FORMAT", fallback=None),
+    )
 except TypeError:
     # Type error means that we tried to read from None file
     _logger.info("Error reading config file: %r", CONFIG_FILE)
     # Come on python... how does a nonexistent section not drop through to DEFAULT?!
-    for sec in ('Paths', 'Downloader', 'Index'):
+    for sec in ("Paths", "Downloader", "Index"):
         CONFIG_OBJECT.add_section(sec)
 except Exception:
     _logger.exception("Error reading config file: %r", CONFIG_FILE)
     raise
-
-
 
 
 #  ██████╗ ██████╗ ███╗   ██╗███████╗████████╗ █████╗ ███╗   ██╗████████╗███████╗
@@ -223,30 +217,38 @@ except Exception:
 # ╚██████╗╚██████╔╝██║ ╚████║███████║   ██║   ██║  ██║██║ ╚████║   ██║   ███████║
 #  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
 
-# Paths section
-CACHE_FEED = CONFIG_OBJECT.getboolean('Paths', 'CACHE_FEED')
-FILING_ROOT = CONFIG_OBJECT.get('Paths', 'FILING_ROOT')
-FEED_CACHE_ROOT = CONFIG_OBJECT.get('Paths', 'FEED_CACHE_ROOT')
-CACHE_INDEX = CONFIG_OBJECT.getboolean('Paths', 'CACHE_INDEX')
-INDEX_ROOT = CONFIG_OBJECT.get('Paths', 'INDEX_ROOT')
-INDEX_CACHE_ROOT = CONFIG_OBJECT.get('Paths', 'INDEX_CACHE_ROOT')
-FILING_PATH_FORMAT = CONFIG_OBJECT.get('Paths', 'FILING_PATH_FORMAT')
-FEED_CACHE_PATH_FORMAT = CONFIG_OBJECT.get('Paths', 'FEED_CACHE_PATH_FORMAT')
-INDEX_CACHE_PATH_FORMAT = CONFIG_OBJECT.get('Paths', 'INDEX_CACHE_PATH_FORMAT')
+# Paths to filings and indices
+FILING_ROOT = CONFIG_OBJECT.get("Paths", "FILING_ROOT")
+FEED_CACHE_ROOT = CONFIG_OBJECT.get("Paths", "FEED_CACHE_ROOT")
+INDEX_ROOT = CONFIG_OBJECT.get("Paths", "INDEX_ROOT")
+INDEX_CACHE_ROOT = CONFIG_OBJECT.get("Paths", "INDEX_CACHE_ROOT")
+# expand user dir if present
+if '~' in FILING_ROOT:
+    FILING_ROOT = os.path.expanduser(FILING_ROOT)
+if '~' in FEED_CACHE_ROOT:
+    FEED_CACHE_ROOT = os.path.expanduser(FEED_CACHE_ROOT)
+if '~' in INDEX_ROOT:
+    INDEX_ROOT = os.path.expanduser(INDEX_ROOT)
+if '~' in INDEX_CACHE_ROOT:
+    INDEX_CACHE_ROOT = os.path.expanduser(INDEX_CACHE_ROOT)
 
-# Downloader section
-KEEP_ALL = CONFIG_OBJECT.getboolean('Downloader', 'KEEP_ALL')
-KEEP_REGEX = CONFIG_OBJECT.get('Downloader', 'KEEP_REGEX')
+# Path format
+FILING_PATH_FORMAT = CONFIG_OBJECT.get("Paths", "FILING_PATH_FORMAT")
+FEED_CACHE_PATH_FORMAT = CONFIG_OBJECT.get("Paths", "FEED_CACHE_PATH_FORMAT")
+INDEX_CACHE_PATH_FORMAT = CONFIG_OBJECT.get("Paths", "INDEX_CACHE_PATH_FORMAT")
 
-# Index section
-INDEX_DELIMITER = CONFIG_OBJECT.get('Index', 'INDEX_DELIMITER')
-INDEX_EXTENSION = CONFIG_OBJECT.get('Index', 'INDEX_EXTENSION')
-INDEX_FILE_COMPRESSION = CONFIG_OBJECT.get('Index', 'INDEX_FILE_COMPRESSION')
+# Filings cache settings
+CACHE_FEED = CONFIG_OBJECT.getboolean("Paths", "CACHE_FEED")
+KEEP_ALL = CONFIG_OBJECT.getboolean("Downloader", "KEEP_ALL")
+KEEP_REGEX = CONFIG_OBJECT.get("Downloader", "KEEP_REGEX")
 
-if INDEX_DELIMITER.lower() in ('\t', '\\t', 'tab', '\\\t', '\\\\t'):
-    INDEX_DELIMITER = '\t'
+# Index cache settings
+CACHE_INDEX = CONFIG_OBJECT.getboolean("Paths", "CACHE_INDEX")
+INDEX_DELIMITER = CONFIG_OBJECT.get("Index", "INDEX_DELIMITER")
+INDEX_EXTENSION = CONFIG_OBJECT.get("Index", "INDEX_EXTENSION")
 
-
+if INDEX_DELIMITER.lower() in ("\t", "\\t", "tab", "\\\t", "\\\\t"):
+    INDEX_DELIMITER = "\t"
 
 
 # ██████╗  █████╗ ████████╗██╗  ██╗███████╗
@@ -255,6 +257,7 @@ if INDEX_DELIMITER.lower() in ('\t', '\\t', 'tab', '\\\t', '\\\\t'):
 # ██╔═══╝ ██╔══██║   ██║   ██╔══██║╚════██║
 # ██║     ██║  ██║   ██║   ██║  ██║███████║
 # ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝
+
 
 def format_filing_path(**kwargs):
     """
@@ -269,6 +272,7 @@ def format_filing_path(**kwargs):
     Well here comes eval to the rescue! I know, eval-ing user-provided strings is TERRIBLE practice.
     Really TERRIBLE.
     Whatever. It works. I limit it to 150 characters anyway, so your injection has to be shorter than that.
+    I'm pretty sure rm -rf / is longer than 150 characters.
 
     LEGAL DISCLAIMER: Know where you config file is loading from. This is most definitely an attack vector.
 
@@ -292,19 +296,21 @@ def format_filing_path(**kwargs):
     # Get that thing from above.
     global FILING_PATH_FORMAT
 
+    # If only someone who knew how to program would write this instead of me.
     locals().update(kwargs)
 
     try:
-        cik = int(kwargs.get('cik', 0))
-        cik_str = f'{cik:010d}'
+        cik = int(kwargs.get("cik", 0))
+        cik_str = f"{cik:010d}"
     except (ValueError, TypeError):
         cik = 0
-        cik_str = 10*'0'
+        cik_str = 10 * "0"
 
-    accession = kwargs.get('accession', '9090909090-90-909090')
-    accession18 = accession.replace('-', '')
+    accession = kwargs.get("accession", "9090909090-90-909090")
+    accession18 = accession.replace("-", "")
 
     return eval(f"""f'{FILING_PATH_FORMAT[:150]}'""")
+
 
 def format_feed_cache_path(datetime_in):
     """
@@ -317,6 +323,7 @@ def format_feed_cache_path(datetime_in):
     # in case the config file assumes positional data
     return FEED_CACHE_PATH_FORMAT.format(datetime_in, date=datetime_in)
 
+
 def format_index_cache_path(datetime_or_yearQN_str):
     """
     Formats index cache path on a given date.
@@ -325,27 +332,24 @@ def format_index_cache_path(datetime_or_yearQN_str):
     # Get that thing from above.
     global INDEX_CACHE_PATH_FORMAT
 
-    def get_yr_qtr_from_str(yq_string, *,
-                            yr_re=re.compile(r'(?P<year>(?:20|19)\d\d)Q?(?P<qtr>[1234])',
-                                             re.I)):
+    def get_yr_qtr_from_str(yq_string, *, yr_re=re.compile(r"(?P<year>(?:20|19)\d\d)Q?(?P<qtr>[1234])", re.I)):
         """Get year/qtr from string"""
         try:
             yq_dict = yr_re.search(yq_string).groupdict()
         except AttributeError:
             return (1990, 0)
 
-        return int(yq_dict['year']), int(yq_dict['qtr'])
+        return int(yq_dict["year"]), int(yq_dict["qtr"])
 
     try:
         year = datetime_or_yearQN_str.year
-        qtr = (datetime_or_yearQN_str.month-1)//3 + 1
+        qtr = (datetime_or_yearQN_str.month - 1) // 3 + 1
     except AttributeError:
         year, qtr = get_yr_qtr_from_str(datetime_or_yearQN_str)
 
-        datetime_or_yearQN_str = dt.datetime(year, qtr*3 - 2, 1)
+        datetime_or_yearQN_str = dt.datetime(year, qtr * 3 - 2, 1)
 
-    return INDEX_CACHE_PATH_FORMAT.format(date=datetime_or_yearQN_str,
-                                          year=year, quarter=qtr)
+    return INDEX_CACHE_PATH_FORMAT.format(date=datetime_or_yearQN_str, year=year, quarter=qtr)
 
 
 def get_filing_path(**kwargs):
@@ -355,8 +359,7 @@ def get_filing_path(**kwargs):
     """
     global FILING_ROOT
 
-    return os.path.join(FILING_ROOT,
-                        format_filing_path(**kwargs))
+    return os.path.join(FILING_ROOT, format_filing_path(**kwargs))
 
 
 def get_feed_cache_path(datetime_in):
@@ -366,8 +369,7 @@ def get_feed_cache_path(datetime_in):
     """
     global FEED_CACHE_ROOT
 
-    return os.path.join(FEED_CACHE_ROOT,
-                        format_feed_cache_path(datetime_in))
+    return os.path.join(FEED_CACHE_ROOT, format_feed_cache_path(datetime_in))
 
 
 def get_index_cache_path(datetime_or_yearQN_str):
@@ -377,5 +379,4 @@ def get_index_cache_path(datetime_or_yearQN_str):
     """
     global INDEX_CACHE_ROOT
 
-    return os.path.join(INDEX_CACHE_ROOT,
-                        format_index_cache_path(datetime_or_yearQN_str))
+    return os.path.join(INDEX_CACHE_ROOT, format_index_cache_path(datetime_or_yearQN_str))
