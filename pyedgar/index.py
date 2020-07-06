@@ -19,6 +19,7 @@ import pandas as pd
 
 # Module Imports
 from pyedgar import config
+from pyedgar.utilities.indices import IndexMaker as _IndexMaker
 # from pyedgar.utilities import edgarweb
 # from pyedgar.utilities import edgarcache
 # from pyedgar.utilities import forms
@@ -46,10 +47,10 @@ class EDGARIndex():
         use_tqdm: flag for whether or not to wrap downloads in tqdm for progress monitoring
         """
         self.simplify_col_names = simplify_col_names
+        self.IndexMaker = _IndexMaker(use_tqdm=use_tqdm)
+
         if force_download:
-            from pyedgar.utilities.indices import IndexMaker
-            idx = IndexMaker(use_tqdm=use_tqdm)
-            idx.extract_indexes()
+            self.IndexMaker.extract_indexes()
 
 
     @property
