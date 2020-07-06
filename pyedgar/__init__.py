@@ -13,7 +13,7 @@ Files from the SEC reside at https://www.sec.gov/Archives/edgar/data/CIK/ACCESSI
 """
 
 __title__ = 'pyedgar'
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 __version_info__ = tuple(int(i) for i in __version__.split("."))
 __author__ = 'Mac Gaulin'
 __license__ = 'MIT'
