@@ -76,7 +76,7 @@ class EDGARIndex():
         indices = dict()
 
         if fname_regex is None:
-            fname_regex = re.compile('\.{}$'.format(config.INDEX_EXTENSION), re.I)
+            fname_regex = re.compile(r'\.{}$'.format(config.INDEX_EXTENSION), re.I)
 
         for _file in os.listdir(idx_root):
             matches = fname_regex.search(_file)
@@ -135,5 +135,5 @@ class EDGARIndex():
         try:
             return self.get_index(key)
         except FileNotFoundError:
-            raise KeyError("No index found at key {}. Indices found: {}",
-                           key, list(self.indices.keys()))
+            raise KeyError("No index found at key {}. Indices found: {}"
+                           .format(key, list(self.indices.keys())))
