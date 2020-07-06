@@ -65,7 +65,7 @@ KEEP_REGEX=
 ; Index file settings
 INDEX_DELIMITER=\t
 ; Index file extension
-; If you want to compress the index files, change INDEX_EXTENSION to .tab.gz
+; If you want to compress the index files, change INDEX_EXTENSION to tab.gz
 INDEX_EXTENSION=tab.gz
 ```
 
@@ -245,7 +245,7 @@ KEEP_REGEX = CONFIG_OBJECT.get("Downloader", "KEEP_REGEX")
 # Index cache settings
 CACHE_INDEX = CONFIG_OBJECT.getboolean("Paths", "CACHE_INDEX")
 INDEX_DELIMITER = CONFIG_OBJECT.get("Index", "INDEX_DELIMITER")
-INDEX_EXTENSION = CONFIG_OBJECT.get("Index", "INDEX_EXTENSION")
+INDEX_EXTENSION = CONFIG_OBJECT.get("Index", "INDEX_EXTENSION").lstrip('.')
 
 if INDEX_DELIMITER.lower() in ("\t", "\\t", "tab", "\\\t", "\\\\t"):
     INDEX_DELIMITER = "\t"
