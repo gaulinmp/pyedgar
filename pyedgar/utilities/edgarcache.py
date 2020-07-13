@@ -128,49 +128,6 @@ class EDGARCacher(object):
 
         return ret_val
 
-    def download_daily_feed(self, dl_date, overwrite=False, resume=True):
-        """Download a daily feed tar given a datetime input."""
-        sec_path = edgarweb.get_feed_path(dl_date)
-        local_path = self._get_feed_cache_path(dl_date)
-
-        if overwrite:
-            try:
-                os.remove(local_path)
-            except Exception:
-                pass
-
-        return self._downloader.download_tar(sec_path, local_path, resume=resume)
-
-    def download_quarterly_index(self, dl_date, compressed=True, overwrite=False, resume=True):
-        """Download a quarterly index given a datetime input."""
-        # For now, get the IDX file, not the zipped file. Because laziness and edu internet.
-        sec_path = edgarweb.get_idx_path(dl_date, compressed=compressed)
-        local_path = self._get_index_cache_path(dl_date)
-
-        if overwrite:
-            try:
-                os.remove(local_path)
-            except Exception:
-                pass
-
-        if compressed:
-            return self._downloader.download_tar(sec_path, local_path, resume=resume)
-
-        return self._downloader.download_plaintext(sec_path, local_path)
-
-    def download_many_feeds(self, from_date, to_date=None):
-        """
-        Generator that yields (dt.date, downloaded daily feed tar file path)
-        """
-        if to_date is None:
-            to_date = dt.date.today()
-
-        for i_date in range(from_date.toordinal(), to_date.toordinal()):
-            i_date = dt.date.fromordinal(i_date)
-
-            # Actually get the file. This downloads it, or passes the filepath to the cached file.
-            yield i_date, self.download_daily_feed(i_date)
-
     def extract_from_feed_cache(self, cache_path):
         """
         Loop through daily feed compressed files and extract them to local cache.
@@ -246,14 +203,73 @@ class EDGARCacher(object):
 
         return i_done, i_tot
 
-    def extract_daily_feeds(self, from_date, to_date=None):
+
+    def iterate_daily_feeds(self, from_date, to_date=None):
+        """
+        Generator that yields (dt.date, daily feed tar file path)
+        """
+        if to_date is None:
+            to_date = dt.date.today()
+
+        for i_date in range(from_date.toordinal(), to_date.toordinal()):
+            # i_date is ordinal number, so cast it to date
+            yield dt.date.fromordinal(i_date), self._get_feed_cache_path(i_date)
+
+    def download_daily_feed(self, dl_date, overwrite=False, resume=True):
+        """Download a daily feed tar given a datetime input."""
+        sec_path = edgarweb.get_feed_path(dl_date)
+        local_path = self._get_feed_cache_path(dl_date)
+
+        if overwrite:
+            try:
+                os.remove(local_path)
+            except Exception:
+                pass
+
+        return self._downloader.download_tar(sec_path, local_path, resume=resume)
+
+    def download_quarterly_index(self, dl_date, compressed=True, overwrite=False, resume=True):
+        """Download a quarterly index given a datetime input."""
+        # For now, get the IDX file, not the zipped file. Because laziness and edu internet.
+        sec_path = edgarweb.get_idx_path(dl_date, compressed=compressed)
+        local_path = self._get_index_cache_path(dl_date)
+
+        if overwrite:
+            try:
+                os.remove(local_path)
+            except Exception:
+                pass
+
+        if compressed:
+            return self._downloader.download_tar(sec_path, local_path, resume=resume)
+
+        return self._downloader.download_plaintext(sec_path, local_path)
+
+    def download_many_feeds(self, from_date, to_date=None):
+        """
+        Generator that yields (dt.date, downloaded daily feed tar file path)
+        """
+        for i_date, _ in self.iterate_daily_feeds(from_date, to_date=to_date):
+            # Actually get the file. This downloads it, or passes the filepath to the cached file.
+            yield i_date, self.download_daily_feed(i_date)
+
+
+    def extract_daily_feeds(self, from_date, to_date=None, download_first=True):
         """
         Loop through daily feed compressed files and extract them to local cache.
         Uses the object's path formatter to determine file paths.
+
+        Args:
+            from_date (datetime): Day to start extracting on.
+            to_date (datetime): Optional day to finish extracting on. Default: datetime.date.today()
+            download_first (bool): Flag for whether to try and download daily feed cache files from
+                EDGAR if they don't exist, or just use the already downloaded files. Default: False.
         """
         num_extracted, num_total, num_parsed = 0, 0, 0
 
-        for i_date, feed_path in self.download_many_feeds(from_date, to_date=to_date):
+        iter_func = self.download_many_feeds if download_first else self.iterate_daily_feeds
+
+        for i_date, feed_path in iter_func(from_date, to_date=to_date):
             if not feed_path:
                 # This day doesn't exist on EDGAR.
                 # Not sure why servers can't work on weekends.
@@ -264,8 +280,8 @@ class EDGARCacher(object):
                                    i_date, feed_path)
                 continue
 
-            self._logger.info("Done with {:%Y-%m-%d}, size is {:4.2f} MB"
-                               .format(i_date, os.path.getsize(feed_path)/1024**2))
+            self._logger.info("Daily feed cache {:%Y-%m-%d}: {:4.2f} MB"
+                              .format(i_date, os.path.getsize(feed_path)/1024**2))
 
             try:
                 i_extracted, i_searched = self.extract_from_feed_cache(feed_path)
@@ -280,3 +296,5 @@ class EDGARCacher(object):
             num_extracted += i_extracted
             num_total += i_searched
             num_parsed += 1
+
+        num_extracted, num_total, num_parsed

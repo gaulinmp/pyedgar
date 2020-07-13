@@ -319,8 +319,14 @@ def format_feed_cache_path(datetime_in):
     # Get that thing from above.
     global FEED_CACHE_PATH_FORMAT
 
+    if isinstance(datetime_in, int):
+        datetime_in = dt.date.fromordinal(datetime_in)
+
     # Pass datetime as both the first arg and as date=,
     # in case the config file assumes positional data
+    _logger.debug("FEED_CACHE_PATH_FORMAT.format(datetime_in, date=datetime_in):%r.format(%r, date=%r)",
+                  FEED_CACHE_PATH_FORMAT, datetime_in, datetime_in)
+
     return FEED_CACHE_PATH_FORMAT.format(datetime_in, date=datetime_in)
 
 
