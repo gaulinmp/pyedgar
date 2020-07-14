@@ -31,8 +31,8 @@ INDEX_ROOT=/data/bulk/data/edgar/indices/
 ; INDEX_CACHE_ROOT is the root of the
 INDEX_CACHE_ROOT=/data/bulk/data/edgar/raw_from_edgar/indices/
 
-
 ; FILING_PATH_FORMAT is the string to be .format-ed with the CIK and ACCESSION of the filing
+; Don't put injection attacks here. That would be bad.
 ; Maximum length is 250 characters.
 ; Format string is formatted as an f-string (see docs), therefore slicing is possible.
 ; Available variables are:
@@ -43,14 +43,22 @@ INDEX_CACHE_ROOT=/data/bulk/data/edgar/raw_from_edgar/indices/
 ; Examples:
 ; FILING_PATH_FORMAT={accession[11:13]}/{accession}.nc
 ;         Would result in --> FILING_ROOT/95/0001005463-95-000003.nc
+;         This is useful for accession-only lookups (which is nice because multiple CIKs can file the same accession)
+;
 ; FILING_PATH_FORMAT={cik_str[0:2]}/{cik_str[2:4]}/{cik_str[4:6]}/{cik_str[6:8]}/{cik_str[8:10]}/{accession}.txt
 ;         Would result in --> FILING_ROOT/00/01/00/54/63/0001005463-95-000003.txt
+;         This uses CIK to break up filings, resulting in < 100 entries per directory. One problem is multiple CIKs
+;           can file the same accession, meaning you have to either copy the same accession filing to multiple dirs
+;
+; FILING_PATH_FORMAT={accession[:4]}/{accession[4:7]}/{accession[7:10]}/{accession[11:13]}/{accession[14:17]}/{accession[17:]}/{accession}.nc
+;         Would result in --> FILING_ROOT/1234/567/890/12/123/456/1234567890-12-123456.txt
+;         This is useful for only accession lookups (no CIKs) but also < 1000 entries per directory
+;
 FILING_PATH_FORMAT={accession[11:13]}/{accession}.nc
-; Don't put injection attacks here. That would be bad.
 
 ; Filename format for caching FEED compressed files from EDGAR
 ; String is passed .format(date=datetime object) of the date of the feed
-FEED_CACHE_PATH_FORMAT=sec_daily_{date:%Y-%m-%d}.tar.gz
+FEED_CACHE_PATH_FORMAT={date:%Y%m%d}.nc.tar.gz
 
 ; Filename format for caching INDEX compressed files from EDGAR
 ; Available data are: date (datetime object), year, and quarter (both ints)
