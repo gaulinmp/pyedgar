@@ -50,17 +50,20 @@ def main(start_date=None, last_n_days=None, get_indices=True, download_feeds=Tru
     """
     rgx = re.compile(config.KEEP_REGEX, re.I) if not config.KEEP_ALL else None
     _logger.info("From Config: keep regex: %r", rgx)
-    cacher = edgarcache.EDGARCacher(keep_form_type_regex=rgx)
+    cacher = edgarcache.EDGARCacher(keep_form_type_regex=rgx, check_cik='cik' in config.FILING_PATH_FORMAT)
 
     if start_date is None:
         start_date = dt.date.fromordinal(dt.date.today().toordinal() - (last_n_days or 30))
 
     if download_feeds:
         _logger.info("Downloading since {:%Y-%m-%d}...".format(start_date))
-        list(cacher.download_many_feeds(start_date))
+        for _ in cacher.download_many_feeds(start_date):
+            pass
+
     if extract_feeds:
         _logger.info("Extracting since {:%Y-%m-%d}...".format(start_date))
-        list(cacher.extract_daily_feeds(start_date))
+        for _ in cacher.extract_daily_feeds(start_date, download_first=False):
+            pass
 
     if get_indices:
         _logger.info("Downloading and extracting indices")

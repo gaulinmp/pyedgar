@@ -33,7 +33,7 @@ INDEX_CACHE_ROOT=/data/bulk/data/edgar/raw_from_edgar/indices/
 
 
 ; FILING_PATH_FORMAT is the string to be .format-ed with the CIK and ACCESSION of the filing
-; Maximum length is 150 characters.
+; Maximum length is 250 characters.
 ; Format string is formatted as an f-string (see docs), therefore slicing is possible.
 ; Available variables are:
 ;    cik (int)
@@ -271,8 +271,8 @@ def format_filing_path(**kwargs):
     So how to evaluate it? We can\'t use ``FILING_PATH_FORMAT.format(**kwargs)`` because then you can\'t do cik[:5] for sub-folders.
     Well here comes eval to the rescue! I know, eval-ing user-provided strings is TERRIBLE practice.
     Really TERRIBLE.
-    Whatever. It works. I limit it to 150 characters anyway, so your injection has to be shorter than that.
-    I'm pretty sure rm -rf / is longer than 150 characters.
+    Whatever. It works. I limit it to 250 characters anyway, so your injection has to be shorter than that.
+    I'm pretty sure rm -rf / is longer than 250 characters.
 
     LEGAL DISCLAIMER: Know where you config file is loading from. This is most definitely an attack vector.
 
@@ -309,7 +309,7 @@ def format_filing_path(**kwargs):
     accession = kwargs.get("accession", "9090909090-90-909090")
     accession18 = accession.replace("-", "")
 
-    return eval(f"""f'{FILING_PATH_FORMAT[:150]}'""")
+    return eval(f"""f'{FILING_PATH_FORMAT[:250]}'""")
 
 
 def format_feed_cache_path(datetime_in):
@@ -324,8 +324,8 @@ def format_feed_cache_path(datetime_in):
 
     # Pass datetime as both the first arg and as date=,
     # in case the config file assumes positional data
-    _logger.debug("FEED_CACHE_PATH_FORMAT.format(datetime_in, date=datetime_in):%r.format(%r, date=%r)",
-                  FEED_CACHE_PATH_FORMAT, datetime_in, datetime_in)
+    _logger.debug("FEED_CACHE_PATH_FORMAT:%r.format(date=%s)",
+                  FEED_CACHE_PATH_FORMAT, datetime_in)
 
     return FEED_CACHE_PATH_FORMAT.format(datetime_in, date=datetime_in)
 

@@ -108,7 +108,7 @@ class EDGARCacher(object):
                 continue
             break
 
-        ret_val = {'doc': txt}
+        ret_val = {'doc': txt, 'encoding':_decode_type, 'decode_errors':_errors}
 
         if self.keep_regex is not None:
             ret_val['form_type'] = forms.get_header(txt, "FORM-TYPE")
@@ -128,7 +128,7 @@ class EDGARCacher(object):
 
         return ret_val
 
-    def extract_from_feed_cache(self, cache_path):
+    def extract_from_feed_cache(self, cache_path, overwrite=True):
         """
         Loop through daily feed compressed files and extract them to local cache.
         Uses the object's path formatter to determine file paths.
@@ -144,7 +144,7 @@ class EDGARCacher(object):
                 # tarinfo.name of form ./ACCESSION.nc
                 nc_acc = tarinfo.name.split('/')[-1][:-3]
                 if len(nc_acc) != 20:
-                    self._logger.warning("Accession in filename seems suspect. %r", nc_acc)
+                    self._logger.warning("\tAccession in filename seems suspect. %r", nc_acc)
 
                 try:
                     nc_file = tar.extractfile(tarinfo)
@@ -156,17 +156,17 @@ class EDGARCacher(object):
                 try:
                     nc_dict = self._handle_nc(nc_file)
                 except InputTypeError:
-                    self._logger.warning("Not a file or string at %r (%r/%r extracted)",
+                    self._logger.warning("\tNot a file or string at %r (%r/%r extracted)",
                                          tarinfo.name, i_done, i_tot)
                     continue
                 except NoCIKFound:
                     # This only triggers if self.check_cik is set.
-                    self._logger.warning("No CIK found at %r (%r/%r extracted)",
+                    self._logger.warning("\tNo CIK found at %r (%r/%r extracted)",
                                          tarinfo.name, i_done, i_tot)
                     continue
                 except NoFormTypeFound:
                     # This only triggers if self.keep_regex is set.
-                    self._logger.warning("No FormType found at %r (%r/%r extracted)",
+                    self._logger.warning("\tNo FormType found at %r (%r/%r extracted)",
                                          tarinfo.name, i_done, i_tot)
                     continue
                 except WrongFormType:
@@ -179,26 +179,26 @@ class EDGARCacher(object):
                         nc_dict['accession'] = nc_acc
                 except AttributeError:
                     # None type has no pop
-                    self._logger.warning("Handling nc file %r passed exceptions (%r/%r extracted)",
+                    self._logger.warning("\tHandling nc file %r passed exceptions (%r/%r extracted)",
                                          tarinfo.name, i_done, i_tot)
                     continue
                 except KeyError:
                     # This triggers upon nc_dict.pop not having 'doc' in it. Shouldn't happen.
-                    self._logger.warning("No document item extracted from %r (%r/%r extracted)",
+                    self._logger.warning("\tNo document item extracted from %r (%r/%r extracted)",
                                          tarinfo.name, i_done, i_tot)
                     continue
 
                 # Get local nc file path. Accession is nc file filename.
                 nc_out_path = self._get_filing_path(**nc_dict)
                 i_done += 1
-                if os.path.exists(nc_out_path):
+                if not overwrite and os.path.exists(nc_out_path):
                     continue
 
                 # Sometimes the containing dir (cik or year) doesn't exist. Make it so.
                 if not os.path.exists(os.path.dirname(nc_out_path)):
                     os.makedirs(os.path.dirname(nc_out_path))
 
-                with open(nc_out_path, 'w', encoding=self.EDGAR_ENCODING) as fh:
+                with open(nc_out_path, 'w', encoding=nc_dict['encoding'], errors=nc_dict['decode_errors']) as fh:
                     fh.write(nc_text)
 
         return i_done, i_tot
@@ -276,21 +276,21 @@ class EDGARCacher(object):
                 continue
 
             if not os.path.exists(feed_path):
-                self._logger.error("Failed to download %r file to %r.",
+                self._logger.warning("Cache file does not exist for %s at %s.",
                                    i_date, feed_path)
                 continue
 
-            self._logger.info("Daily feed cache {:%Y-%m-%d}: {:4.2f} MB"
-                              .format(i_date, os.path.getsize(feed_path)/1024**2))
+            self._logger.info("Daily feed cache %s: %4.2f MB",
+                              i_date, os.path.getsize(feed_path)/1024**2)
 
             try:
                 i_extracted, i_searched = self.extract_from_feed_cache(feed_path)
             except tarfile.ReadError:
-                self._logger.error("Handling nc file on {:%Y-%m-%d} at {} raised Read Error"
-                                   .format(i_date, feed_path))
+                self._logger.error("Handling nc file on %s at %s raised Read Error",
+                                   i_date, feed_path)
 
             # Log progress after each tar file is done
-            self._logger.info("Finished adding %r out of %r from %r\n",
+            self._logger.info("Finished adding %d out of %d from %s\n",
                               i_extracted, i_searched, feed_path)
 
             num_extracted += i_extracted
