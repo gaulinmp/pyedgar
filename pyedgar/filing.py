@@ -16,11 +16,13 @@ from pyedgar.utilities import forms
 from pyedgar.utilities.forms import FORMS
 from pyedgar.utilities import localstore
 
+
 class Filing(object):
     """
     Base class for EDGAR filing, with format aware parsing
     to provide access to filing documents as objects.
     """
+
     #: Firm CIK
     _cik = None
     #: Filing Accession
@@ -47,9 +49,20 @@ class Filing(object):
     __log = None
     #: Read-filing arguments
     read_args = None
+    #: get_header arguments
+    header_args = None
 
-    def __init__(self, cik=None, accession=None,
-                 use_cache=None, web_fallback=True, **kwargs):
+    def __init__(
+        self,
+        cik=None,
+        accession=None,
+        use_cache=None,
+        web_fallback=True,
+        flat_headers=True,
+        omit_duplicate_headers=False,
+        duplicate_headers_as_list=True,
+        **kwargs
+    ):
         """
         Initialization sets CIK, Accession, and optionally
         loads filing from disk.
@@ -62,6 +75,17 @@ class Filing(object):
                 default to `config.CACHE_FEED`.
             web_fallback (bool): When FileNotFoundError is raised, try
                 `edgarweb.download_form_from_web` instead.
+            flat_headers (bool): Set the style of loading headers. If True,
+                all headers will be loaded in one dictionary. If False, headers
+                will be loaded as a hierarchical set of dictionaries, matching
+                the hierarchy in the filing's headers. Default: True.
+            omit_duplicate_headers (bool): Passed to `get_all_headers()`, if True
+                will ignore duplicate headers (e.g. 8-K items) keeping the first.
+                Default: False.
+            duplicate_headers_as_list (bool): Passed to `get_all_headers()`,
+                if True will return the header values as a list (e.g. ['5.02',
+                '5.07', '9.01']). If False will add _# to duplicate header names.
+                Default: True.
 
         Returns:
             Filing object.
@@ -69,7 +93,7 @@ class Filing(object):
         Raises:
             None. Loading done lazily.
         """
-        self.__log = logging.getLogger('pyedgar.filing.Filing')
+        self.__log = logging.getLogger("pyedgar.filing.Filing")
 
         self._set_cik(cik)
         self._set_accession(accession)
@@ -78,13 +102,16 @@ class Filing(object):
         self._web_fallback = web_fallback
 
         self.read_args = kwargs
+        self.header_args = {
+            "flat": flat_headers,
+            "omit_duplicates": omit_duplicate_headers,
+            "add_int_to_name": not duplicate_headers_as_list,
+        }
 
     def __repr__(self):
-        return ("<EDGAR filing ({}/{}) Headers:{}, Text:{}, Documents:{}>"
-                .format(self.cik, self.accession,
-                        bool(self._headers),
-                        bool(self._full_text),
-                        bool(self._documents),))
+        return "<EDGAR filing ({}/{}) Headers:{}, Text:{}, Documents:{}>".format(
+            self.cik, self.accession, bool(self._headers), bool(self._full_text), bool(self._documents),
+        )
 
     def __str__(self):
         return self.__repr__()
@@ -107,8 +134,7 @@ class Filing(object):
                 self._cik = int(cik)
         except ValueError:
             # They didn't pass in a CIK that looked like a number
-            raise ValueError("CIKs must be numeric variables,"
-                             " you passed in {}".format(cik))
+            raise ValueError("CIKs must be numeric variables," " you passed in {}".format(cik))
 
         return self._cik
 
@@ -131,16 +157,15 @@ class Filing(object):
         try:
             if accession and localstore.ACCESSION_RE.search(accession):
                 if len(accession) == 18:
-                    self._accession = '{}-{}-{}'.format(accession[:10],
-                                                        accession[10:12],
-                                                        accession[12:])
+                    self._accession = "{}-{}-{}".format(accession[:10], accession[10:12], accession[12:])
                 else:
                     self._accession = accession
         except TypeError:
             # They didn't pass in an accession that was a string.
-            raise ValueError("Accessions must be 18/20 character strings of format"
-                             " ##########-##-######, you passed in {}"
-                             .format(accession))
+            raise ValueError(
+                "Accessions must be 18/20 character strings of format"
+                " ##########-##-######, you passed in {}".format(accession)
+            )
 
         return self.accession
 
@@ -163,46 +188,35 @@ class Filing(object):
             if self._local_cache:
                 self.__log.debug("Local cache if: %r", self._local_cache)
                 try:
-                    self._full_text = forms.get_full_filing(
-                        self.path, **self.read_args)
+                    self._full_text = forms.get_full_filing(self.path, **self.read_args)
                     return self._full_text
                 except FileNotFoundError:
-                    msg = ("Filing not found for CIK:{} / Accession:{}"
-                        .format(self.cik, self.accession))
+                    msg = "Filing not found for CIK:{} / Accession:{}".format(self.cik, self.accession)
                     self.__log.debug(msg)
                     if not self._web_fallback:
                         raise FileNotFoundError(msg)
 
-            self.__log.debug("Downloading from EDGAR web: %d/%s",
-                             self.cik, self.accession)
-            self._full_text = edgarweb.download_form_from_web(self.cik,
-                                                              self.accession)
+            self.__log.debug("Downloading from EDGAR web: %d/%s", self.cik, self.accession)
+            self._full_text = edgarweb.download_form_from_web(self.cik, self.accession)
 
         return self._full_text
 
-    def _set_headers(self, set_flat=True, set_hierarchical=True):
+    def _set_headers(self, **load_kwargs):
         """
         Load the full set of headers of the filing at cik/accession into memory.
 
-        TODO: Handle non-SGML headers (e.g. from S3)
-
         Args:
-            set_flat (bool): Parse the headers as a flat dict, no hierarchy.
-            set_hierarchical (bool): Parse the headers with their full
-                hierarchical structure, overwriting the flat dictionary where
-                keys overlap and both are specified.
+            Optional load arguments passed to `forms.get_all_headers()`
 
         Returns:
             dict: Dictionary of headers, with either flat, hierarchical, both,
-                or neither.
+                or neither, depending on `self._flat_headers`.
         """
         if not self.full_text:
             self.__log.debug("Full filing text missing or not found!")
             return None
-        if set_flat:
-            self._headers = forms.get_all_headers(self.full_text, flat=True)
-        if set_hierarchical:
-            self._headers.update(forms.get_all_headers(self.full_text), flat=False)
+
+        self._headers = forms.get_all_headers(self.full_text, **{**self.header_args, **load_kwargs})
 
         return self._headers
 
@@ -217,27 +231,27 @@ class Filing(object):
         Raises
             ileNotFoundError: The file wasn't found in the local cache.
         """
-        _t = self.headers.get('type', self.headers.get('conformed-submission-type', 'OTHER'))
+        _t = self.headers.get("type", self.headers.get("conformed-submission-type", "OTHER"))
         self._type_exact = _t
 
-        self._type = 'other'
-        if _t in ('3', '3/A'):
+        self._type = "other"
+        if _t in ("3", "3/A"):
             self._type = FORMS.FORM_3
-        elif _t in ('4', '4/A'):
+        elif _t in ("4", "4/A"):
             self._type = FORMS.FORM_4
-        elif _t in ('8-K', '8-K/A'):
+        elif _t in ("8-K", "8-K/A"):
             self._type = FORMS.FORM_8K
-        elif _t[:4] in ('10-Q' '10QS'):
+        elif _t[:4] in ("10-Q" "10QS"):
             self._type = FORMS.FORM_10Q
-        elif _t[:4] in ('10-K' '10KS'):
+        elif _t[:4] in ("10-K" "10KS"):
             self._type = FORMS.FORM_10K
-        elif _t.endswith('14A'):
+        elif _t.endswith("14A"):
             self._type = FORMS.FORM_DEF14A
-        elif 'SC 13G' in _t:
+        elif "SC 13G" in _t:
             self._type = FORMS.FORM_13G
-        elif 'SC 13D' in _t:
+        elif "SC 13D" in _t:
             self._type = FORMS.FORM_13D
-        elif '13F-' in _t:
+        elif "13F-" in _t:
             self._type = FORMS.FORM_13F
 
         return self._type
@@ -272,8 +286,7 @@ class Filing(object):
             str: The full path of the local cache.
         """
         if not self._filing_local_path:
-            self._filing_local_path = localstore.get_filing_path(
-                cik=self.cik, accession=self.accession)
+            self._filing_local_path = localstore.get_filing_path(cik=self.cik, accession=self.accession)
 
         return self._filing_local_path
 
@@ -367,12 +380,12 @@ class Filing(object):
 
         for doc in self.documents:
             try:
-                i_seq = int(doc.get('sequence', -1337))
+                i_seq = int(doc.get("sequence", -1337))
                 if sequence_number == i_seq:
                     return doc
             except ValueError:
                 # then try matching sequences as strings.
-                i_seq = doc.get('sequence', '').strip()
+                i_seq = doc.get("sequence", "").strip()
                 if str(sequence_number) == i_seq:
                     return doc
 
@@ -402,7 +415,7 @@ class Filing(object):
 
         if regex:
             search_re = search_string
-            if not hasattr(search_re, 'search'):
+            if not hasattr(search_re, "search"):
                 search_re = re.compile(search_re, flags=flags)
 
         ret = []
