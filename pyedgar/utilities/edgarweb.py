@@ -255,28 +255,26 @@ class EDGARDownloader(object):
 
         return local_target
 
-    def download_plaintext(self, remote_path, local_target, chunk_size=1024**2):
+    def download_plaintext(self, remote_path, local_target, chunk_size=1024**2, overwrite=True):
         """
         Download a plaintext file from `remote_path` to `local_target`.
-        Forces download, because there's no way to verify with server that the whole file is downloaded,
-        unlike gzip compressed files above.
         """
         from_addr = ('https://www.sec.gov/Archives{remote_path}'
                      .format(remote_path=remote_path))
 
         # Return if exists. Delete if it is partial?
         if os.path.exists(local_target):
-            os.remove(local_target)
+            if overwrite:
+                os.remove(local_target)
+            else:
+                return local_target
 
         # Verify destination directory exists
         if not os.path.exists(os.path.dirname(local_target)):
             raise FileNotFoundError('The directory does not exist: {}'
                                     .format(os.path.dirname(local_target)))
 
-        self._logger.info(("Downloading plaintext: "
-                           "{remote_path} to {local_target}")
-                           .format(remote_path=remote_path,
-                                   local_target=local_target))
+        self._logger.info("Downloading plaintext: %r to %r", remote_path, local_target)
 
         # Check total file length on server
         with requests.get(from_addr, stream=True) as response:
@@ -286,8 +284,7 @@ class EDGARDownloader(object):
             expected_tot_len = int(response.headers.get('content-length', 10 * 1024**2))
 
             with open(local_target, 'wb') as fh:
-                self._logger.info("Saving plaintext {} to {}"
-                                    .format(remote_path, local_target))
+                self._logger.info("Saving plaintext %r to %r", remote_path, local_target)
 
                 for chunk in self._tq(response.iter_content(chunk_size=chunk_size),
                                       total=expected_tot_len//chunk_size,

@@ -69,6 +69,9 @@ INDEX_CACHE_PATH_FORMAT=full_index_{year}_Q{quarter}.gz
 KEEP_ALL=True
 KEEP_REGEX=
 
+; User Agent for downloading, to keep the SEC happy
+USER_AGENT=pyedgar feed download by YOUREMAIL@example.com, from code at https://github.com/gaulinmp/pyedgar
+
 [Index]
 ; Index file settings
 INDEX_DELIMITER=\t
@@ -194,6 +197,7 @@ _defaults = {
     "INDEX_DELIMITER": "\t",
     "INDEX_EXTENSION": "tab",
     "INDEX_FILE_COMPRESSION": "",
+    "USER_AGENT": "pyedgar feed download by YOUREMAIL@example.com, from code at https://github.com/gaulinmp/pyedgar",
 }
 
 CONFIG_FILE = get_config_file()
@@ -249,6 +253,7 @@ INDEX_CACHE_PATH_FORMAT = CONFIG_OBJECT.get("Paths", "INDEX_CACHE_PATH_FORMAT")
 CACHE_FEED = CONFIG_OBJECT.getboolean("Paths", "CACHE_FEED")
 KEEP_ALL = CONFIG_OBJECT.getboolean("Downloader", "KEEP_ALL")
 KEEP_REGEX = CONFIG_OBJECT.get("Downloader", "KEEP_REGEX")
+USER_AGENT = CONFIG_OBJECT.get("Downloader", "USER_AGENT")
 
 # Index cache settings
 CACHE_INDEX = CONFIG_OBJECT.getboolean("Paths", "CACHE_INDEX")

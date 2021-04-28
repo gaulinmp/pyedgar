@@ -8,11 +8,13 @@ Download script to download and cache feeds and indices.
 """
 
 # Stdlib imports
-# import os
+import os
 import re
 # import tarfile
 import logging
 import datetime as dt
+from time import sleep
+from subprocess import Popen
 
 # 3rd party imports
 
@@ -73,6 +75,41 @@ def main(start_date=None, last_n_days=None, get_indices=True, download_feeds=Tru
     _logger.info("Done")
 
 
+
+def download_feed(date, overwrite=True):
+    """Download edgar daily feed compressed file.
+
+    Args:
+        date (datetime, str): Date of feed file to download. Can be datetime
+            or string (YYYYMMDD format with optional spacing).
+        overwrite (bool): Flag for whether to overwrite any existing file.
+    """
+    if isinstance(date, str):
+        date, date_input = re.sub('[^0-9]', '', date), date
+        if len(date) != 8:
+            _logger.error("Date must be in YYYYMMDD format (spacing ignored). You passed: %r", date_input)
+            return
+        date = dt.datetime(date[:4], date[4:6], date[6:])
+
+    feed_path = config.get_feed_cache_path(date)
+
+
+    if os.path.exists(feed_path):
+        if not overwrite:
+            _logger.warning('Skipping existing cache file at: %r', feed_path)
+            return
+
+        _logger.warning('Removing existing file at %r', feed_path)
+        os.remove(feed_path)
+
+    year, month, day = date.year, date.month, date.day
+    qtr = (month-1)//3+1
+    url = f"https://www.sec.gov/Archives/edgar/Feed/{year}/QTR{qtr}/{year}{month:02d}{day:02d}.nc.tar.gz"
+
+    _logger.info("curl %s -o %s", url, feed_path)
+    return Popen(['curl', url, '-o', feed_path])
+
+
 if __name__ == '__main__':
     from argparse import ArgumentParser
 
@@ -108,8 +145,7 @@ if __name__ == '__main__':
         'w': logging.WARNING,
         'i': logging.INFO,
         'd': logging.DEBUG,
-        }.get(str(cl_args.log_level)[0].lower(),
-              logging.ERROR)
+        }.get(cl_args.log_level[0].lower(), logging.ERROR)
 
     logging.basicConfig(level=_log_level)
 
@@ -118,3 +154,54 @@ if __name__ == '__main__':
          get_indices=cl_args.get_indices,
          download_feeds=cl_args.download_feeds,
          extract_feeds=cl_args.extract_feeds)
+
+
+if __name__ == 'NOT __main__':
+    from argparse import ArgumentParser
+
+    argp = ArgumentParser(description='Redownload daily feed file.')
+
+    argp.add_argument('-d', '--date', default=None,
+                      dest='date', metavar='YYYY-MM-DD',
+                      type=lambda s: dt.datetime.strptime(s, "%Y-%m-%d"),
+                      help='The date to download in form YYYY-MM-DD')
+
+    argp.add_argument('-r', '--recursive', default=False, action="store_true",
+                      dest='recursive',
+                      help='Recursively download from date till today.')
+
+    argp.add_argument('-t', '--today', default=False, action="store_true",
+                      dest='get_today',
+                      help='Get the last 2 days of downloads (if missing)')
+
+    cl_args = argp.parse_args()
+    _logger.info(cl_args)
+    _logger.warning("Downloading to %r", config.FEED_CACHE_ROOT)
+
+    if cl_args.get_today:
+        for i_date in range(dt.date.today().toordinal()-2, dt.date.today().toordinal()):
+            i_date = dt.date.fromordinal(i_date)
+            print(f"Downloading {i_date:%Y-%m-%d}")
+            subp = download_feed(i_date, overwrite=False)
+            if subp is not None:
+                subp.wait()
+            sleep(1)
+
+    elif cl_args.date is None:
+        argp.print_help()
+
+    else:
+        if cl_args.recursive:
+            for i_date in range(cl_args.date.toordinal(), dt.date.today().toordinal()):
+                i_date = dt.date.fromordinal(i_date)
+                print(f"Downloading {i_date:%Y-%m-%d}")
+                subp = download_feed(i_date)
+                if subp is not None:
+                    subp.wait()
+                sleep(1)
+        else:
+            subp = download_feed(cl_args.date)
+            if subp is not None:
+                subp.wait()
+
+    print()
