@@ -45,6 +45,9 @@ def download_feed(date, overwrite=False, use_requests=False, overwrite_size_thre
     """
     date = utilities.datetime_from_string(date)
 
+    if date.weekday() >= 5: # sat/sun
+        return None
+
     feed_path = config.get_feed_cache_path(date)
     url = edgarweb.get_feed_url(date)
 
@@ -84,7 +87,7 @@ def download_feeds_recursively(start_date, end_date=None, overwrite=False, use_r
         try:
             _dl = download_feed(i_dt, overwrite=overwrite, use_requests=use_requests, overwrite_size_threshold=overwrite_size_threshold)
             _dls.append(_dl)
-            _logger.info("Done downloading %r", i_dt)
+            if _dl: _logger.info("Done downloading %r", i_dt)
         except Exception as e:
             _logger.exception("Error downloading %r: %r", i_dt, e)
         sleep(1)
