@@ -17,9 +17,12 @@ URL Change in 2016:
 
 # Stdlib imports
 import os
+import re
 import tarfile
 import logging
+import subprocess
 import datetime as dt
+from time import sleep
 
 # 3rd party imports
 
@@ -65,16 +68,15 @@ class EDGARCacher(object):
         """
         Initialize the downloader object.
 
-        keep_form_type_regex: regular expression object which will match to form-types you wish to keep
+        keep_form_type_regex: regular expression object which will match to form-types you wish to keep, default to config file if None. Pass '.' for all filings.
         check_cik: flag for whether to extract the CIK from the nc file for passing into the path formatter.
         use_tqdm: flag for whether or not to wrap downloads in tqdm for progress monitoring
         """
         self.check_cik = check_cik
 
         self.keep_regex = keep_form_type_regex
-        # Use the following to default to 10s, 20s, 8s, 13s, and Def 14As.
-        # if keep_form_type_regex is None:
-        #    re.compile(r'10-[KQ]|10[KQ]SB|20-F|8-K|13[FDG]|(?:14A$)')
+        if keep_form_type_regex is None and config.KEEP_REGEX:
+           self.keep_regex = re.compile(config.KEEP_REGEX)
 
         self._downloader = edgarweb.EDGARDownloader(use_tqdm=use_tqdm)
 
@@ -217,7 +219,7 @@ class EDGARCacher(object):
 
     def download_daily_feed(self, dl_date, overwrite=False, resume=True):
         """Download a daily feed tar given a datetime input."""
-        sec_path = edgarweb.get_feed_path(dl_date)
+        sec_path = edgarweb.get_feed_url(dl_date)
         local_path = self._get_feed_cache_path(dl_date)
 
         if overwrite:
@@ -231,7 +233,7 @@ class EDGARCacher(object):
     def download_quarterly_index(self, dl_date, compressed=True, overwrite=False, resume=True):
         """Download a quarterly index given a datetime input."""
         # For now, get the IDX file, not the zipped file. Because laziness and edu internet.
-        sec_path = edgarweb.get_idx_path(dl_date, compressed=compressed)
+        sec_path = edgarweb.get_index_url(dl_date, compressed=compressed)
         local_path = self._get_index_cache_path(dl_date)
 
         if overwrite:
