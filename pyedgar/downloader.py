@@ -8,10 +8,8 @@ Download script to download and cache feeds and indices.
 """
 
 # Stdlib imports
-import os
 import re
 import logging
-import subprocess
 import datetime as dt
 from time import sleep
 
@@ -31,7 +29,7 @@ _logger = logging.getLogger(__name__)
 
 
 def download_feed(date, overwrite=False, use_requests=False, overwrite_size_threshold=8 * 1024):
-    """Download edgar daily feed compressed file.
+    """Download an edgar daily feed compressed file.
 
     Args:
         date (datetime, str): Date of feed file to download. Can be datetime
@@ -43,9 +41,9 @@ def download_feed(date, overwrite=False, use_requests=False, overwrite_size_thre
     Returns:
         tuple: output file path, return code
     """
-    date = utilities.datetime_from_string(date)
+    date = utilities.parse_date_input(date)
 
-    if date.weekday() >= 5: # sat/sun
+    if date.weekday() >= 5: # skip sat/sun, because computers don't work weekends. Union rules, I think?
         return None
 
     feed_path = config.get_feed_cache_path(date)
@@ -78,18 +76,17 @@ def download_feeds_recursively(start_date, end_date=None, overwrite=False, use_r
     Returns:
         tuple: output file path, return code
     """
-    start_date = utilities.datetime_from_string(start_date)
-    end_date = utilities.datetime_from_string(end_date or dt.datetime.today())
+    start_date = utilities.parse_date_input(start_date)
+    end_date = utilities.parse_date_input(end_date or dt.datetime.today())
 
     _dls = []
-    for i_date in range(start_date.toordinal(), end_date.toordinal()):
-        i_dt = dt.date.fromordinal(i_date)
+    for i_date in utilities.iterate_dates(start_date, end_date, period='daily'):
         try:
-            _dl = download_feed(i_dt, overwrite=overwrite, use_requests=use_requests, overwrite_size_threshold=overwrite_size_threshold)
+            _dl = download_feed(i_date, overwrite=overwrite, use_requests=use_requests, overwrite_size_threshold=overwrite_size_threshold)
             _dls.append(_dl)
-            if _dl: _logger.info("Done downloading %r", i_dt)
+            if _dl: _logger.info("Done downloading %r", i_date)
         except Exception as e:
-            _logger.exception("Error downloading %r: %r", i_dt, e)
+            _logger.exception("Error downloading %r: %r", i_date, e)
         sleep(1)
 
     return _dls

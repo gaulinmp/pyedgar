@@ -78,7 +78,7 @@ class EDGARCacher(object):
         if keep_form_type_regex is None and config.KEEP_REGEX:
            self.keep_regex = re.compile(config.KEEP_REGEX)
 
-        self._downloader = edgarweb.EDGARDownloader(use_tqdm=use_tqdm)
+        self._downloader = edgarweb.EDGARDownloader()
 
         self._get_filing_path = localstore.get_filing_path
         self._get_feed_cache_path = config.get_feed_cache_path
