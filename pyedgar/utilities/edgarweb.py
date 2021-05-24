@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Utilities for general EDGAR website and ftp tasks.
+Utilities for general EDGAR website and ftp tasks, including download functionality.
 
 index URL: http://www.sec.gov/Archives/edgar/data/2098/0001026608-05-000015-index.htm
 complete submission URL: http://www.sec.gov/Archives/edgar/data/2098/000102660805000015/0001026608-05-000015.txt
@@ -21,6 +21,8 @@ import os
 import re
 import logging
 import subprocess
+import datetime as dt
+from time import sleep
 
 # 3rd party imports
 import requests
@@ -72,7 +74,11 @@ def get_edgar_urls(cik, accession=None):
     Returns:
         tuple: Tuple of strings in the form (raw url, Filing Index url)
     """
-    cik,accession = utilities.get_cik_acc(cik, accession=accession)
+    _obj = utilities.get_cik_acc(cik, accession=accession)
+    cik, accession = _obj.get("cik", None), _obj.get("accession", None)
+
+    if cik is None or accession is None:
+        return ("", "")
 
     return (
         "{}/edgar/data/{}/{}.txt".format(EDGAR_ROOT, cik, accession),
@@ -93,7 +99,7 @@ def edgar_links(cik, accession=None, index=True, raw=True):
     Returns:
         str: HTML `a` tag with href pointing to EDGAR index and/or raw file of of `accession`.
     """
-    _raw,_idx = get_edgar_urls(cik, accession=accession)
+    _raw, _idx = get_edgar_urls(cik, accession=accession)
 
     _html = []
     if index:
@@ -101,18 +107,7 @@ def edgar_links(cik, accession=None, index=True, raw=True):
     if raw:
         _html.append("<a href='{}' target=_blank>Raw</a>".format(_raw))
 
-    return ' '.join(_html)
-
-
-def _get_qtr(datetime_in):
-    """
-    Return the quarter (1-4) based on the month.
-    Input is either a datetime object (or object with month attribute) or the month (1-12).
-    """
-    try:
-        return int((datetime_in.month - 1) / 3) + 1
-    except AttributeError:
-        return int((datetime_in - 1) / 3) + 1
+    return " ".join(_html)
 
 
 def get_feed_url(date):
@@ -123,7 +118,7 @@ def get_feed_url(date):
 
     Returns:
         str: URL to feed file on `date`"""
-    return "{0}/edgar/Feed/{1:%Y}/QTR{2}/{1:%Y%m%d}.nc.tar.gz".format(EDGAR_ROOT, date, _get_qtr(date))
+    return "{0}/edgar/Feed/{1:%Y}/QTR{2}/{1:%Y%m%d}.nc.tar.gz".format(EDGAR_ROOT, date, utilities.get_quarter(date))
 
 
 def get_index_url(date_or_year, quarter=None, compressed=True):
@@ -136,18 +131,19 @@ def get_index_url(date_or_year, quarter=None, compressed=True):
         quarter (int,None): Quarter of the index, will be inferred from date_or_year if None.
     """
     try:
-        date_or_year = date_or_year.year
+        year = date_or_year.year
         # Leave this here, because if date_or_year isn't a datetime, we can't calculate the quarter. So error out.
         if quarter is None:
-            quarter = _get_qtr(date_or_year)
+            quarter = utilities.get_quarter(date_or_year)
     except AttributeError:
-        # Then date_or_year is an integer. Leave it be.
+        # Then date_or_year is an integer, cast just in case
+        year = int(date_or_year)
         if quarter is None:
             raise AttributeError("Must either pass either datetime or both integer year AND quarter")
 
     ext = "gz" if compressed else "idx"
 
-    return "{0}/edgar/full-index/{1}/QTR{2}/master.{3}".format(EDGAR_ROOT, date_or_year, quarter, ext)
+    return "{0}/edgar/full-index/{1}/QTR{2}/master.{3}".format(EDGAR_ROOT, year, quarter, ext)
 
 
 def download_form_from_web(cik, accession=None):
@@ -162,7 +158,7 @@ def download_form_from_web(cik, accession=None):
     Returns:
         tuple: Tuple of strings in the form (bulk DL url, user website url)
     """
-    _raw,_ = get_edgar_urls(cik, accession=accession)
+    _raw, _ = get_edgar_urls(cik, accession=accession)
 
     r = requests.get(_raw, headers=REQUEST_HEADERS)
 
@@ -175,7 +171,26 @@ def download_form_from_web(cik, accession=None):
             continue
 
 
-def download_from_edgar(edgar_url, local_path, overwrite=False, use_requests=False, chunk_size=10 * 1024 ** 2, overwrite_size_threshold=-1):
+def has_curl():
+    try:
+        subp = subprocess.run(["curl", '-A "pyedgar test"', "https://www.google.com"], capture_output=True)
+    except FileNotFoundError:
+        # apparently if curl isn't found it's FileNotFoundError.
+        return False
+    except Exception:
+        return False
+    return True
+
+
+def download_from_edgar(
+    edgar_url,
+    local_path,
+    overwrite=False,
+    use_requests=False,
+    chunk_size=10 * 1024 ** 2,
+    overwrite_size_threshold=-1,
+    sleep_after=0,
+):
     """
     Generic downloader, uses curl by default unless use_requests=True is passed in.
 
@@ -186,6 +201,7 @@ def download_from_edgar(edgar_url, local_path, overwrite=False, use_requests=Fal
         use_requests (bool): Flag for whether to use requests or curl (default False == curl).
         chunk_size (int): Size of chunks to write to disk while streaming from requests
         overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded.
+        sleep_after (int): Number of seconds to sleep after downloading file (default 0)
 
     Returns:
         (str, None): Returns path of downloaded file (or None if download failed).
@@ -196,10 +212,10 @@ def download_from_edgar(edgar_url, local_path, overwrite=False, use_requests=Fal
     if os.path.exists(local_path):
         loc_size = os.path.getsize(local_path)
         if not overwrite and loc_size > overwrite_size_threshold:
-            _logger.warning("Skipping cache file (%s bytes) at %r", '{:,d}'.format(loc_size), local_path)
+            _logger.warning("Skipping cache file (%s bytes) at %r", "{:,d}".format(loc_size), local_path)
             return local_path
 
-        _logger.warning("Removing existing file (%s bytes) at %r", '{:,d}'.format(loc_size), local_path)
+        _logger.warning("Removing existing file (%s bytes) at %r", "{:,d}".format(loc_size), local_path)
         os.remove(local_path)
 
     _useragent = REQUEST_HEADERS["User-Agent"]
@@ -207,6 +223,7 @@ def download_from_edgar(edgar_url, local_path, overwrite=False, use_requests=Fal
     if not use_requests:
         _logger.info('curl -A "%s" %s -o %s', _useragent, edgar_url, local_path)
         subp = subprocess.run(["curl", '-A "{}"'.format(_useragent), edgar_url, "-o", local_path])
+        sleep(sleep_after)
         if subp.returncode != 0:
             raise Exception("Error %r downloading with curl: %r", subp.returncode, subp.stderr)
     else:
@@ -218,6 +235,7 @@ def download_from_edgar(edgar_url, local_path, overwrite=False, use_requests=Fal
                     for chunk in response.iter_content(chunk_size=chunk_size):
                         if chunk:  # filter out keep-alive new chunks
                             fh.write(chunk)
+            sleep(sleep_after)
         except Exception as excp:
             raise Exception("Error downloading with requests: %r", excp) from excp
 
@@ -234,134 +252,134 @@ def download_from_edgar(edgar_url, local_path, overwrite=False, use_requests=Fal
     return None
 
 
-class EDGARDownloader(object):
+def download_feed(date, overwrite=False, use_requests=False, overwrite_size_threshold=8 * 1024, sleep_after=0):
+    """Download an edgar daily feed compressed file.
+
+    Args:
+        date (datetime, str): Date of feed file to download. Can be datetime
+            or string (YYYYMMDD format with optional spacing).
+        overwrite (bool): Flag for whether to overwrite any existing file (default False).
+        use_requests (bool): Flag for whether to use requests or curl (default False == curl).
+        overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded.
+        sleep_after (int): Number of seconds to sleep after downloading file (default 0)
+
+    Returns:
+        tuple: output file path, return code
     """
-    Class that downloads feeds, indexes, or filings from EDGAR.
+    date = utilities.parse_date_input(date)
+
+    if date.weekday() >= 5:  # skip sat/sun, because computers don't work weekends. Union rules, I think?
+        return None
+
+    feed_path = config.get_feed_cache_path(date)
+    url = get_feed_url(date)
+
+    return download_from_edgar(
+        url,
+        feed_path,
+        overwrite=overwrite,
+        use_requests=use_requests,
+        overwrite_size_threshold=overwrite_size_threshold,
+        sleep_after=sleep_after,
+    )
+
+
+def download_feeds_recursively(
+    start_date, end_date=None, overwrite=False, use_requests=False, overwrite_size_threshold=8 * 1024, loop_sleep=1
+):
+    """Download edgar daily feed compressed files recursively from start to end.
+    If `end_date` is `None`, default to today.
+    Error downloads, or rate limited downloads are around 6kb,
+    thus set the overwrite_size_threshold to larger than that
+    to automatically re-download those error files.
+
+    Args:
+        start_date (datetime, str): Starting date of feeds to download. Can be datetime
+            or string (YYYYMMDD format with optional spacing).
+        end_date (None,datetime, str): Ending date of feeds to download (default today).
+            Can be datetime or string (YYYYMMDD format with optional spacing).
+        overwrite (bool): Flag for whether to overwrite any existing file (default False).
+        use_requests (bool): Flag for whether to use requests or curl (default False == curl).
+        overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded.
+        loop_sleep (int): Number of seconds to wait each loop after downloading file (default 1).
+
+    Returns:
+        tuple: output file path, return code
     """
+    start_date = utilities.parse_date_input(start_date)
+    end_date = utilities.parse_date_input(end_date or dt.datetime.today())
+    loop_sleep = max(0.1, loop_sleep)
 
-    # May as well share this across instances (instead of setting in __init__)
-    _logger = logging.getLogger(__name__)
+    _dls = []
+    for i_date in utilities.iterate_dates(start_date, end_date, period="daily"):
+        try:
+            _dl = download_feed(
+                i_date,
+                overwrite=overwrite,
+                use_requests=use_requests,
+                overwrite_size_threshold=overwrite_size_threshold,
+                sleep_after=loop_sleep,
+            )
+            _dls.append(_dl)
+            if _dl:
+                _logger.info("Done downloading %r", i_date)
+        except Exception as e:
+            _logger.exception("Error downloading %r: %r", i_date, e)
 
-    def download_tar(self, edgar_url, local_target, chunk_size=1024 ** 2, retries=5, resume=True):
-        """Download a file from `edgar_url` to `local_target`."""
+    return _dls
 
-        # Verify destination directory exists
-        if not os.path.exists(os.path.dirname(local_target)):
-            raise FileNotFoundError("The directory does not exist: {}".format(os.path.dirname(local_target)))
 
-        # If it fails, try, try, try, try again. Then stop; accept failure.
-        for n_retries in range(retries):
-            # Check for local copy and determine length (for caching/resuming)
-            try:
-                loc_size = os.path.getsize(local_target)
-                headers = {"Range": "bytes={loc_size}-".format(loc_size=loc_size)}
-                # Resume with header: Range: bytes=StartPos- (implicit end pos)
-            except FileNotFoundError:
-                loc_size = 0
-                headers = None
+def download_indexes_recursively(
+    start_date,
+    end_date=None,
+    overwrite=False,
+    use_requests=False,
+    overwrite_size_threshold=8 * 1024,
+    compressed=True,
+    loop_sleep=1,
+):
+    """Download edgar quarterly compressed filing index files recursively from start to end.
+    If `end_date` is `None`, default to today.
+    Error downloads, or rate limited downloads are around 6kb,
+    thus set the overwrite_size_threshold to larger than that
+    to automatically re-download those error files.
 
-            # Check total file length on server
-            with requests.get(edgar_url, stream=True) as response:
-                if response.status_code // 100 == 4:
-                    # No such file
-                    return None
-                expected_tot_len = int(response.headers["content-length"])
+    Args:
+        start_date (datetime, str): Starting date of feeds to download. Can be datetime
+            or string (YYYYMMDD format with optional spacing).
+        end_date (None,datetime, str): Ending date of feeds to download. Default to today.
+            Can be datetime or string (YYYYMMDD format with optional spacing).
+        overwrite (bool): Flag for whether to overwrite any existing file. Default False).
+        use_requests (bool): Flag for whether to use requests or curl. Default False == curl).
+        overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded. Default 8k.
+        compressed (bool): Flag for whether compressed or uncompressed index files should be downloaded. Default True.
+        loop_sleep (int): Number of seconds to wait each loop after downloading file (default 1).
 
-            # If local length matches, we are done. Return local path
-            if expected_tot_len == loc_size:
-                self._logger.info(
-                    "Already downloaded (%r == %r) from %r to %r", loc_size, expected_tot_len, edgar_url, local_target
-                )
-                break
+    Returns:
+        tuple: output file path, return code
+    """
+    start_date = utilities.parse_date_input(start_date)
+    end_date = utilities.parse_date_input(end_date or dt.datetime.today())
+    loop_sleep = max(0.1, loop_sleep)
 
-            # If local length is longer than server, we done goofed. Delete it and try again.
-            if loc_size > expected_tot_len:
-                self._logger.info(
-                    "Downloaded too much (%r > %r) from %r, removing %r",
-                    loc_size,
-                    expected_tot_len,
-                    edgar_url,
-                    local_target,
-                )
-                os.remove(local_target)
-                loc_size = 0
-                headers = None
-            elif not resume and (0 < loc_size < expected_tot_len):
-                self._logger.info("No resuming (%r < %r), removing %r", loc_size, expected_tot_len, local_target)
-                os.remove(local_target)
-                loc_size = 0
-                headers = None
+    _dls = []
+    for i_date in utilities.iterate_dates(start_date, end_date, period="quarterly"):
+        edgar_url = get_index_url(i_date, compressed=compressed)
+        index_cache = config.get_index_cache_path(i_date)
 
-            self._logger.info("Downloading %r of %r: %r to %r", n_retries, retries, edgar_url, local_target)
+        try:
+            _dl = download_from_edgar(
+                edgar_url,
+                index_cache,
+                overwrite=overwrite,
+                use_requests=use_requests,
+                overwrite_size_threshold=overwrite_size_threshold,
+                sleep_after=loop_sleep,
+            )
+            _dls.append(_dl)
+            if _dl:
+                _logger.info("Done downloading %r", i_date)
+        except Exception as e:
+            _logger.exception("Error downloading %r: %r", i_date, e)
 
-            # Download or resume
-            with requests.get(edgar_url, headers=headers, stream=True) as response:
-                expected_len = int(response.headers["content-length"])
-
-                if loc_size:
-                    self._logger.info(
-                        "Already downloaded (%r/%r, remaining: %r) from %r to %r",
-                        loc_size,
-                        expected_tot_len,
-                        expected_len,
-                        edgar_url,
-                        local_target,
-                    )
-
-                with open(local_target, "ab" if loc_size else "wb") as fh:
-                    self._logger.info("Saving tar {} to {}".format(edgar_url, local_target))
-
-                    for chunk in self._tq(
-                        response.iter_content(chunk_size=chunk_size),
-                        total=expected_len // chunk_size,
-                        unit="Mb",
-                        desc=os.path.basename(local_target),
-                    ):
-                        if chunk:  # filter out keep-alive new chunks
-                            fh.write(chunk)
-
-            self._logger.info("Done saving (len: {}) {}".format(os.path.getsize(local_target), local_target))
-
-            break  # Done downloading, break out of range(5)
-
-        return local_target
-
-    def download_plaintext(self, edgar_url, local_target, chunk_size=1024 ** 2, overwrite=True):
-        """
-        Download a plaintext file from `edgar_url` to `local_target`.
-        """
-        # Return if exists. Delete if it is partial?
-        if os.path.exists(local_target):
-            if overwrite:
-                os.remove(local_target)
-            else:
-                return local_target
-
-        # Verify destination directory exists
-        if not os.path.exists(os.path.dirname(local_target)):
-            raise FileNotFoundError("The directory does not exist: {}".format(os.path.dirname(local_target)))
-
-        self._logger.info("Downloading plaintext: %r to %r", edgar_url, local_target)
-
-        # Check total file length on server
-        with requests.get(edgar_url, stream=True) as response:
-            if response.status_code // 100 == 4:
-                # No such file
-                return None
-            expected_tot_len = int(response.headers.get("content-length", 10 * 1024 ** 2))
-
-            with open(local_target, "wb") as fh:
-                self._logger.info("Saving plaintext %r to %r", edgar_url, local_target)
-
-                for chunk in self._tq(
-                    response.iter_content(chunk_size=chunk_size),
-                    total=expected_tot_len // chunk_size,
-                    unit="Mb",
-                    desc=os.path.basename(local_target),
-                ):
-                    if chunk:  # filter out keep-alive new chunks
-                        fh.write(chunk)
-
-        self._logger.info("Done saving (len: {}) {}".format(os.path.getsize(local_target), local_target))
-
-        return local_target
+    return _dls

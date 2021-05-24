@@ -11,137 +11,111 @@ Download and extract indices from EDGAR index files.
 import os
 import logging
 import datetime as dt
-from itertools import product
 
 # 3rd party imports
 import pandas as _pd
 
-# TQDM is a simple progress bar. If it doesn't exist, pass through arguments.
-try:
-    def _faketqdm(x, *args, **kwargs):
-        return x
-    from tqdm import tqdm as _tqdm
-except ModuleNotFoundError:
-    _tqdm = _faketqdm
-
-
 # Module Imports
 from pyedgar import config
+from pyedgar import utilities
 from pyedgar.utilities import edgarweb
-from pyedgar.utilities import edgarcache
-from pyedgar.utilities import forms
-from pyedgar.utilities import localstore
 
 
-class IndexMaker():
+class IndexMaker:
     """
     Class that downloads EDGAR to your very own computer.
     Everyone should have a local copy after all!
     I have just enough flexibility here for my computer. It works on Linux, YWindowsMMV.
     """
-    # These should work for everypeople.
-    EDGAR_ENCODING = 'latin-1' # The SEC documentation says it uses latin-1
-    # EDGAR_ENCODING = 'utf-8' # Alternatively one could use utf-8.
 
-    edgar_index_args = {
-        'sep': '|',
-        'encoding': 'latin-1',
-        'skiprows': [0, 1, 2, 3, 4, 5, 6, 7, 8, 10]
-    }
+    edgar_index_args = {"sep": "|", "encoding": "latin-1", "skiprows": [0, 1, 2, 3, 4, 5, 6, 7, 8, 10]}
 
-    # Local versions of file path lookups, for overriding if you like
+    _use_requests = False
     _tq = None
-    _get_filing_path = None
-    _get_feed_cache_path = None
     _get_index_cache_path = None
 
     # May as well share this across instances (instead of setting in __init__)
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, use_tqdm=True):
+    def __init__(self, use_requests=False):
         """
         Initialize the index making object.
 
-        use_tqdm: flag for whether or not to wrap downloads in tqdm for progress monitoring
+        Arguments:
+            use_tqdm (bool): flag for whether or not to wrap downloads in tqdm for progress monitoring
         """
-
-        self._downloader = edgarcache.EDGARCacher(use_tqdm=use_tqdm)
-
-        self._get_filing_path = localstore.get_filing_path
-        self._get_feed_cache_path = config.get_feed_cache_path
+        self._use_requests = use_requests
         self._get_index_cache_path = config.get_index_cache_path
 
-        self._tq = _tqdm if use_tqdm else _faketqdm
+    def download_indexes(self, start_year=None, stop_year=None, overwrite=False):
+        """Download multiple edgar quarterly index compressed files.
 
-    def extract_indexes(self, start_year=None, stop_year=None):
-        self._logger.warning("Downloading the quarterly indices...")
+        Args:
+            start_year (int, datetime, None): Starting year (or datetime from which we'll extract year/quarter). Default to 1995.
+            stop_year (int, datetime, None): Ending year (or datetime from which we'll extract year/quarter). Default to today's year.
+            overwrite (bool): Flag for whether to overwrite any existing file (default False).
+            use_requests (bool): Flag for whether to use requests or curl (default False == curl).
+            overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded.
+
+        Returns:
+            tuple: output file path, return code
+        """
+        return edgarweb.download_indexes_recursively(
+            start_year, end_date=stop_year, overwrite=overwrite, use_requests=self._use_requests
+        )
+
+    def extract_indexes(self, start_year=None, stop_year=None, save_forms=None, download_first=True, overwrite=False):
+        if download_first:
+            self._logger.info("Downloading the quarterly indices...")
+            self.download_indexes(start_year=start_year, stop_year=stop_year, overwrite=overwrite)
+            self._logger.info("Done downloading quarterly indices.")
+
         df = _pd.DataFrame()
-        try:
-            start_year = int(start_year)
-        except (ValueError, TypeError):
-            start_year = 1995
-        try:
-            stop_year = int(stop_year)
-        except (ValueError, TypeError):
-            stop_year = dt.date.today().year
 
-        idx_num = (start_year - 1994)*4
-
-        for year, qtr in self._tq(product(range(start_year, stop_year + 1),
-                                          range(1, 5)),
-                                  total=idx_num):
-            qtr_dt = dt.date(year, qtr*3, 1)
-
-            self._logger.info("\n\tFor %rQ%r (%r) downloading...",
-                              year, qtr, qtr_dt)
-
-            idx_cache_file = self._downloader.download_quarterly_index(
-                qtr_dt, compressed=True, resume=False)
-
-            self._logger.info("For date %r downloaded %r",
-                              qtr_dt, idx_cache_file)
-
-            if idx_cache_file is None:
-                # Then we didn't get an index file, try the next one (but we're probably done)
-                continue
+        for i_date in utilities.iterate_dates(start_year or dt.date(1995, 1, 1), to_date=stop_year, period="quarterly"):
+            idx_cache_file = self._get_index_cache_path(i_date)
 
             try:
+                self._logger.info("\tLoading index for %rQ%r", i_date.year, utilities.get_quarter(i_date))
                 dfi = _pd.read_csv(idx_cache_file, **self.edgar_index_args)
-            except NotImplementedError:
-                self._logger.warning("Reading %r failed at %r Q%r",
-                                     idx_cache_file, year, qtr)
+            except FileNotFoundError:
+                self._logger.warning(
+                    "No Index cache file at %r (for %rQ%r)", idx_cache_file, i_date.year, utilities.get_quarter(i_date)
+                )
+            except Exception:
+                self._logger.warning(
+                    "Reading %r failed at %rQ%r", idx_cache_file, i_date.year, utilities.get_quarter(i_date)
+                )
                 # File reading didn't work, try overwriting with new download
                 continue
 
-            dfi['Accession'] = dfi.Filename.str.slice(start=-24, stop=-4)
-            del dfi['Filename']
+            dfi["Accession"] = dfi.Filename.str.slice(start=-24, stop=-4)
+            del dfi["Filename"]
 
             df = _pd.concat([df, dfi], copy=False)
 
-            self._logger.info("Added %r(%r) to df(%r)",
-                              idx_cache_file, len(dfi), len(df))
+            self._logger.info("Added %r(%r) to df(%r)", idx_cache_file, len(dfi), len(df))
 
-        df['Date Filed'] = _pd.to_datetime(df['Date Filed'])
+        df["Date Filed"] = _pd.to_datetime(df["Date Filed"])
 
-        self._logger.warning("Done downloading, extracting...")
+        all_forms = df["Form Type"].unique()
+        if save_forms is None:
+            save_forms = {
+                "all": all_forms,
+                "10-K": [x for x in all_forms if x[:4] in ("10-K", "10KS")],
+                "10-Q": [x for x in all_forms if x[:4] in ("10-Q", "10QS")],
+                "DEF14A": [x for x in all_forms if x.endswith("14A")],
+                "8-K": ("8-K", "8-K/A"),
+            }
 
-        all_forms = df['Form Type'].unique()
-        save_forms = {
-            'all':    all_forms,
-            '10-K':   [x for x in all_forms if x[:4] in ('10-K', '10KS')],
-            '10-Q':   [x for x in all_forms if x[:4] in ('10-Q', '10QS')],
-            'DEF14A': [x for x in all_forms if x.endswith('14A')],
-            '13s':    [x for x in all_forms if 'SC 13' in x or '13F-' in x],
-            '8-K': ('8-K', '8-K/A'),
-        }
-
-        for form, formlist in self._tq(save_forms.items(), total=len(save_forms)):
-            outpath = os.path.join(config.INDEX_ROOT,
-                                   'form_{}.{}'.format(form, config.INDEX_EXTENSION))
+        for form, formlist in save_forms.items():
+            outpath = os.path.join(config.INDEX_ROOT, "form_{}.{}".format(form, config.INDEX_EXTENSION))
 
             self._logger.info("Saving %r: %r", outpath, formlist)
 
-            (df[df['Form Type'].isin(formlist)]
-               .sort_values(['CIK','Date Filed'])
-               .to_csv(outpath, sep=config.INDEX_DELIMITER, index=False))
-        self._logger.warning("Done!")
+            (
+                df[df["Form Type"].isin(formlist)]
+                .sort_values(["CIK", "Date Filed"])
+                .to_csv(outpath, sep=config.INDEX_DELIMITER, index=False)
+            )
+        self._logger.info("Done extracting indices!")

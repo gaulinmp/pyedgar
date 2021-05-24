@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Download script to download and cache feeds and indices.
+High level downloading functionality, using lower-level download routines from `pyedgar.utilities`
+
 
 :copyright: © 2020 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
@@ -9,11 +10,19 @@ Download script to download and cache feeds and indices.
 
 # Stdlib imports
 import re
+import os
 import logging
 import datetime as dt
 from time import sleep
 
 # 3rd party imports
+try:
+    from tqdm import tqdm
+except ImportError:
+
+    def tqdm(_iterable, *args, **kwargs):
+        return _iterable
+
 
 # Module Imports
 from pyedgar import config
@@ -28,71 +37,7 @@ from pyedgar.utilities import indices
 _logger = logging.getLogger(__name__)
 
 
-def download_feed(date, overwrite=False, use_requests=False, overwrite_size_threshold=8 * 1024):
-    """Download an edgar daily feed compressed file.
-
-    Args:
-        date (datetime, str): Date of feed file to download. Can be datetime
-            or string (YYYYMMDD format with optional spacing).
-        overwrite (bool): Flag for whether to overwrite any existing file (default False).
-        use_requests (bool): Flag for whether to use requests or curl (default False == curl).
-        overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded.
-
-    Returns:
-        tuple: output file path, return code
-    """
-    date = utilities.parse_date_input(date)
-
-    if date.weekday() >= 5: # skip sat/sun, because computers don't work weekends. Union rules, I think?
-        return None
-
-    feed_path = config.get_feed_cache_path(date)
-    url = edgarweb.get_feed_url(date)
-
-    return edgarweb.download_from_edgar(
-        url,
-        feed_path,
-        overwrite=overwrite,
-        use_requests=use_requests,
-        overwrite_size_threshold=overwrite_size_threshold,
-    )
-
-
-def download_feeds_recursively(start_date, end_date=None, overwrite=False, use_requests=False, overwrite_size_threshold=8 * 1024):
-    """Download edgar daily feed compressed files recursively from start to end.
-    If `end_date` is `None`, default to today.
-    Error downloads, or rate limited downloads are around 6kb, thus set the overwrite_size_threshold to larger than that
-    to automatically re-download those error files.
-
-    Args:
-        start_date (datetime, str): Starting date of feeds to download. Can be datetime
-            or string (YYYYMMDD format with optional spacing).
-        end_date (None,datetime, str): Ending date of feeds to download (default today).
-            Can be datetime or string (YYYYMMDD format with optional spacing).
-        overwrite (bool): Flag for whether to overwrite any existing file (default False).
-        use_requests (bool): Flag for whether to use requests or curl (default False == curl).
-        overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded.
-
-    Returns:
-        tuple: output file path, return code
-    """
-    start_date = utilities.parse_date_input(start_date)
-    end_date = utilities.parse_date_input(end_date or dt.datetime.today())
-
-    _dls = []
-    for i_date in utilities.iterate_dates(start_date, end_date, period='daily'):
-        try:
-            _dl = download_feed(i_date, overwrite=overwrite, use_requests=use_requests, overwrite_size_threshold=overwrite_size_threshold)
-            _dls.append(_dl)
-            if _dl: _logger.info("Done downloading %r", i_date)
-        except Exception as e:
-            _logger.exception("Error downloading %r: %r", i_date, e)
-        sleep(1)
-
-    return _dls
-
-
-def main(start_date=None, last_n_days=None, get_indices=True, download_feeds=True, extract_feeds=True):
+def main(start_date=None, last_n_days=30, get_indices=False, get_feeds=False, use_curl_to_download=None):
     """
     Download feeds and indices.
 
@@ -106,31 +51,47 @@ def main(start_date=None, last_n_days=None, get_indices=True, download_feeds=Tru
             ```python -m pyedgar.downloader -e --last-n-days 30```
 
     Args:
-        start_date (datetime): Date to start extraction of feeds from. When empty, defaults to today() - last_n_days
+        start_date (date): Date to start extraction of feeds from. When empty, defaults to today() - last_n_days
         last_n_days (int): If start_date is missing, extract this number days before today. Default: 30
-        get_indices (bool): Flag to download and extract index files. Default: True
-        download_feeds (bool): Flag to download daily feed files since `start_date` or for `last_n_days`. Default: True
-        extract_feeds (bool): Flag to extract daily feed files since `start_date` or for `last_n_days`. Default: True
+        get_indices (bool): Flag to download and extract index files. Default: False
+        get_feeds (bool): Flag to download daily feed files since `start_date` or for `last_n_days`. Default: False
+        use_curl_to_download (bool, None): Flag to use cURL subprocess instead of `requests` library. If None,
+            will check for and use cURL if it exists. Default: None
     """
+    if use_curl_to_download is None:
+        use_curl_to_download = edgarweb.has_curl()
+
     rgx = re.compile(config.KEEP_REGEX, re.I) if not config.KEEP_ALL else None
     _logger.info("From Config: keep regex: %r", rgx)
-    cacher = edgarcache.EDGARCacher(keep_form_type_regex=rgx, check_cik="cik" in config.FILING_PATH_FORMAT)
+    cacher = edgarcache.EDGARCacher(
+        keep_form_type_regex=rgx, check_cik="cik" in config.FILING_PATH_FORMAT, use_requests=not use_curl_to_download
+    )
 
     if start_date is None:
-        start_date = dt.date.fromordinal(dt.date.today().toordinal() - (last_n_days or 30))
+        start_date = dt.date.fromordinal(dt.date.today().toordinal() - last_n_days)
+    else:
+        start_date = utilities.parse_date_input(start_date)
 
-    if download_feeds:
+    if get_feeds:
         _logger.info("Downloading since {:%Y-%m-%d}...".format(start_date))
-        download_feeds_recursively(start_date, overwrite=False)
-
-    if extract_feeds:
-        _logger.info("Extracting since {:%Y-%m-%d}...".format(start_date))
-        for _ in cacher.extract_daily_feeds(start_date, download_first=False):
-            pass
+        num_dates = len([1 for _ in utilities.iterate_dates(start_date)])
+        for i_date in tqdm(utilities.iterate_dates(start_date), total=num_dates):
+            # download one date, so we can track progress with TQDM
+            edgarweb.extract_daily_feeds(i_date, to_date=i_date, download_first=True, overwrite=False)
 
     if get_indices:
         _logger.info("Downloading and extracting indices")
-        index_maker = indices.IndexMaker()
+        # the last index file we find is probably not 'complete' because it was downloaded during the month maybe.
+        # Let's make sure that isn't the case
+        max_date, last_index = dt.date(1995, 1, 1), None
+        for i_date in utilities.iterate_dates(1995, period='quarterly'):
+            _idx = config.get_index_cache_path(i_date)
+            if os.path.exists(_idx) and i_date > max_date:
+                max_date, last_index = i_date, _idx
+        if last_index is not None:
+            os.remove(last_index)
+
+        index_maker = indices.IndexMaker(use_requests=not use_curl_to_download)
         index_maker.extract_indexes()
 
     _logger.info("Done")
@@ -140,10 +101,9 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
 
     argp = ArgumentParser(
-        description="Downloader for pyedgar, downloads past"
-        " 30 days (or since DATE or last_n_days) of forms and"
-        " all indices (unless -f or -i flags"
-        " respectively are set)."
+        description="Downloader for pyedgar. Has functionality for downloading indexes and filings.\n"
+        "Indexes: downloads quarterly index files from EDGAR, then combines them all into one big master index file.\n"
+        "Filings: downloads compressed filing 'feed files' from EDGAR, then extracts the specified form types."
     )
 
     argp.add_argument(
@@ -152,8 +112,8 @@ if __name__ == "__main__":
         default=None,
         dest="start_date",
         metavar="YYYY-MM-DD",
-        type=lambda s: dt.datetime.strptime(s, "%Y-%m-%d"),
-        help="An optional date of form YYYY-MM-DD to start " "downloading indices from",
+        type=utilities.parse_date_input,
+        help="An optional date to start downloading feeds/indices from (of form YYYY-MM-DD).",
     )
 
     argp.add_argument(
@@ -162,26 +122,20 @@ if __name__ == "__main__":
         default=30,
         dest="last_n_days",
         type=int,
-        help="An optional integer for the last number of days " "to start downloading indices from",
+        help="An number of days before today to start downloading feeds/indices from.",
     )
 
     argp.add_argument("-i", "--indices", action="store_true", dest="get_indices", help="Download and update indices.")
+
     argp.add_argument(
-        "-d",
-        "--download-feeds",
-        action="store_true",
-        dest="download_feeds",
-        help="Do not download or extract daily feed feeds.",
-    )
-    argp.add_argument(
-        "-e", "--extract-feeds", action="store_true", dest="extract_feeds", help="Do not extract daily feed feeds."
+        "-d", "--download-feeds", action="store_true", dest="get_feeds", help="Download and extract daily feed feeds.",
     )
 
     argp.add_argument(
         "--log-level",
         dest="log_level",
         default="error",
-        help="Set the log-level to display more/less output. " "Choose from: error (default), warning, info, debug.",
+        help="Set the log-level to display more/less output. Choose from: error (default), warning, info, debug.",
     )
 
     cl_args = argp.parse_args()
@@ -196,72 +150,5 @@ if __name__ == "__main__":
         start_date=cl_args.start_date,
         last_n_days=cl_args.last_n_days,
         get_indices=cl_args.get_indices,
-        download_feeds=cl_args.download_feeds,
-        extract_feeds=cl_args.extract_feeds,
+        get_feeds=cl_args.get_feeds,
     )
-
-
-if __name__ == "NOT __main__":
-    from argparse import ArgumentParser
-
-    argp = ArgumentParser(description="Redownload daily feed file.")
-
-    argp.add_argument(
-        "-d",
-        "--date",
-        default=None,
-        dest="date",
-        metavar="YYYY-MM-DD",
-        type=lambda s: dt.datetime.strptime(s, "%Y-%m-%d"),
-        help="The date to download in form YYYY-MM-DD",
-    )
-
-    argp.add_argument(
-        "-r",
-        "--recursive",
-        default=False,
-        action="store_true",
-        dest="recursive",
-        help="Recursively download from date till today.",
-    )
-
-    argp.add_argument(
-        "-t",
-        "--today",
-        default=False,
-        action="store_true",
-        dest="get_today",
-        help="Get the last 2 days of downloads (if missing)",
-    )
-
-    cl_args = argp.parse_args()
-    _logger.info(cl_args)
-    _logger.warning("Downloading to %r", config.FEED_CACHE_ROOT)
-
-    if cl_args.get_today:
-        for i_date in range(dt.date.today().toordinal() - 2, dt.date.today().toordinal()):
-            i_date = dt.date.fromordinal(i_date)
-            print(f"Downloading {i_date:%Y-%m-%d}")
-            subp = download_feed(i_date, overwrite=False)
-            if subp is not None:
-                subp.wait()
-            sleep(1)
-
-    elif cl_args.date is None:
-        argp.print_help()
-
-    else:
-        if cl_args.recursive:
-            for i_date in range(cl_args.date.toordinal(), dt.date.today().toordinal()):
-                i_date = dt.date.fromordinal(i_date)
-                print(f"Downloading {i_date:%Y-%m-%d}")
-                subp = download_feed(i_date)
-                if subp is not None:
-                    subp.wait()
-                sleep(1)
-        else:
-            subp = download_feed(cl_args.date)
-            if subp is not None:
-                subp.wait()
-
-    print()
