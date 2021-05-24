@@ -196,7 +196,6 @@ _defaults = {
     "KEEP_REGEX": "",
     "INDEX_DELIMITER": "\t",
     "INDEX_EXTENSION": "tab",
-    "INDEX_FILE_COMPRESSION": "",
     "USER_AGENT": "pyedgar feed download by YOUREMAIL@example.com, from code at https://github.com/gaulinmp/pyedgar",
 }
 
@@ -351,14 +350,10 @@ def format_index_cache_path(datetime_or_yearQN_str):
     # Get that thing from above.
     global INDEX_CACHE_PATH_FORMAT
 
-    def get_yr_qtr_from_str(yq_string, *, yr_re=re.compile(r"(?P<year>(?:20|19)\d\d)Q?(?P<qtr>[1234])", re.I)):
+    def get_yr_qtr_from_str(yq_string, *, yr_re=re.compile(r"([12]\d{3})Q?([1234])", re.I)):
         """Get year/qtr from string"""
-        try:
-            yq_dict = yr_re.search(yq_string).groupdict()
-        except AttributeError:
-            return (1990, 0)
-
-        return int(yq_dict["year"]), int(yq_dict["qtr"])
+        yq = yr_re.search(yq_string)
+        return tuple(int(x) for x in yq.groups()) if yq else (1990, 0)
 
     try:
         year = datetime_or_yearQN_str.year
