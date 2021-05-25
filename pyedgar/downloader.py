@@ -44,11 +44,11 @@ def main(start_date=None, last_n_days=30, get_indices=False, get_feeds=False, us
     Examples:
         This will download/extract last 30 days of forms and all indices:
 
-            ```python -m pyedgar.downloader -i -d -e --last-n-days 30```
+            ```python -m pyedgar.downloader -i -d --last-n-days 30```
 
-        This will just extract the already downloaded last 30 days of forms and ignore indices:
+        This will download and extract the last 7 days of forms:
 
-            ```python -m pyedgar.downloader -e --last-n-days 30```
+            ```python -m pyedgar.downloader -d --last-n-days 7```
 
     Args:
         start_date (date): Date to start extraction of feeds from. When empty, defaults to today() - last_n_days
@@ -98,6 +98,24 @@ def main(start_date=None, last_n_days=30, get_indices=False, get_feeds=False, us
         index_maker.extract_indexes()
         _logger.info("Done downloading and extracting indices")
 
+
+def print_cache_status():
+    for i_date in reversed(list(utilities.iterate_dates(1995))):
+        _feedfile = config.get_feed_cache_path(i_date)
+        if os.path.exists(_feedfile):
+            break
+    else:
+        _feedfile = None
+
+    for i_date in reversed(list(utilities.iterate_dates(1995, period='quarterly'))):
+        _idxfile = config.get_index_cache_path(i_date)
+        if os.path.exists(_idxfile):
+            break
+    else:
+        _idxfile = None
+
+    print("Last downloaded feed cache: ", _feedfile)
+    print("Last downloaded index cache:", _idxfile)
 
 def print_config():
     """Prints out config file"""
@@ -162,6 +180,8 @@ if __name__ == "__main__":
 
     argp.add_argument("--config", action="store_true", dest="print_config", help="Print config file settings.")
 
+    argp.add_argument("--status", action="store_true", dest="print_status", help="Show last downloaded feed and index cache files.")
+
     argp.add_argument(
         "--log",
         "--log-level",
@@ -179,6 +199,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=_log_level)
 
     _logger.debug("Running with args: %r", cl_args)
+
+    if cl_args.print_status:
+        print_cache_status()
 
     if cl_args.print_config:
         print_config()
