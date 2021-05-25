@@ -212,7 +212,7 @@ def download_from_edgar(
     if os.path.exists(local_path):
         loc_size = os.path.getsize(local_path)
         if not overwrite and loc_size > overwrite_size_threshold:
-            _logger.warning("Skipping cache file (%s bytes) at %r", "{:,d}".format(loc_size), local_path)
+            _logger.info("Skipping cache file (%s bytes) at %r", "{:,d}".format(loc_size), local_path)
             return local_path
 
         _logger.warning("Removing existing file (%s bytes) at %r", "{:,d}".format(loc_size), local_path)
@@ -221,14 +221,14 @@ def download_from_edgar(
     _useragent = REQUEST_HEADERS["User-Agent"]
 
     if not use_requests:
-        _logger.info('curl -A "%s" %s -o %s', _useragent, edgar_url, local_path)
+        _logger.debug('curl -A "%s" %s -o %s', _useragent, edgar_url, local_path)
         subp = subprocess.run(["curl", '-A "{}"'.format(_useragent), edgar_url, "-o", local_path], capture_output=True)
         _logger.debug(subp.stdout)
         sleep(sleep_after)
         if subp.returncode != 0:
             raise Exception("Error {} downloading with curl: {}".format(subp.returncode, subp.stderr))
     else:
-        _logger.info("requests.get(%r, headers=%r) >> %r", edgar_url, REQUEST_HEADERS, local_path)
+        _logger.debug("requests.get(%r, headers=%r) >> %r", edgar_url, REQUEST_HEADERS, local_path)
         try:
             with requests.get(edgar_url, headers=REQUEST_HEADERS, stream=True) as response:
                 expected_len = int(response.headers["content-length"])
@@ -244,11 +244,12 @@ def download_from_edgar(
         try:
             loc_size = os.path.getsize(local_path)
         except FileNotFoundError:
-            raise Exception("Error downloading with requests to: %r", local_path)
+            raise Exception("Error downloading with requests to: {}".format(local_path))
         if expected_len != loc_size:
             _logger.exception("requests downloaded {:,d} bytes but expected {:,d}".format(loc_size, expected_len))
 
     if os.path.exists(local_path):
+        _logger.info("Done downloading %.3f MB to %s", os.path.getsize(local_path) / 1024 ** 2, local_path)
         return local_path
     return None
 
@@ -322,10 +323,8 @@ def download_feeds_recursively(
                 sleep_after=loop_sleep,
             )
             _dls.append(_dl)
-            if _dl:
-                _logger.info("Done downloading %r", i_date)
         except Exception as e:
-            _logger.exception("Error downloading %r: %r", i_date, e)
+            _logger.exception("Error downloading %d-%d-%d: %r", i_date.year, i_date.month, i_date.day, e)
 
     return _dls
 
@@ -378,8 +377,6 @@ def download_indexes_recursively(
                 sleep_after=loop_sleep,
             )
             _dls.append(_dl)
-            if _dl:
-                _logger.info("Done downloading %r", i_date)
         except Exception as e:
             _logger.exception("Error downloading %r: %r", i_date, e)
 
