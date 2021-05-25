@@ -10,15 +10,23 @@ Download and extract indices from EDGAR index files.
 # Stdlib imports
 import os
 import logging
-import datetime as dt
 
 # 3rd party imports
-import pandas as _pd
+import pandas as pd
 
 # Module Imports
 from pyedgar import config
 from pyedgar import utilities
 from pyedgar.utilities import edgarweb
+
+
+# progress logging
+try:
+    from tqdm import tqdm
+except ImportError:
+
+    def tqdm(_iterable, *args, **kwargs):
+        return _iterable
 
 
 class IndexMaker:
@@ -37,7 +45,7 @@ class IndexMaker:
     # May as well share this across instances (instead of setting in __init__)
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, use_requests=False):
+    def __init__(self, use_tqdm=False, use_requests=False):
         """
         Initialize the index making object.
 
@@ -47,7 +55,16 @@ class IndexMaker:
         self._use_requests = use_requests
         self._get_index_cache_path = config.get_index_cache_path
 
-    def download_indexes(self, start_year=None, stop_year=None, overwrite=False):
+        if use_tqdm:
+            self._tq = tqdm
+        else:
+
+            def _tq(_iterable, *args, **kwargs):
+                return _iterable
+
+            self._tq = _tq
+
+    def download_indexes(self, start_year=1995, stop_year=None, overwrite=False):
         """Download multiple edgar quarterly index compressed files.
 
         Args:
@@ -60,24 +77,36 @@ class IndexMaker:
         Returns:
             tuple: output file path, return code
         """
-        return edgarweb.download_indexes_recursively(
-            start_year, end_date=stop_year, overwrite=overwrite, use_requests=self._use_requests
-        )
+        _num = len([0 for _ in utilities.iterate_dates(start_year, stop_year, period="quarterly")])
 
-    def extract_indexes(self, start_year=None, stop_year=None, save_forms=None, download_first=True, overwrite=False):
+        # The download recursively works as it sounds, but we want progress bar, so do it date by date
+        for i_date in self._tq(
+            utilities.iterate_dates(start_year, stop_year, period="quarterly"), total=_num, desc="Downloading Indices"
+        ):
+            edgarweb.download_indexes_recursively(
+                i_date, end_date=i_date, overwrite=overwrite, use_requests=self._use_requests
+            )
+
+    def extract_indexes(self, start_year=1995, stop_year=None, save_forms=None, download_first=True, overwrite=False):
         if download_first:
             self._logger.info("Downloading the quarterly indices...")
             self.download_indexes(start_year=start_year, stop_year=stop_year, overwrite=overwrite)
             self._logger.info("Done downloading quarterly indices.")
 
-        df = _pd.DataFrame()
+        df = pd.DataFrame()
 
-        for i_date in utilities.iterate_dates(start_year or dt.date(1995, 1, 1), to_date=stop_year, period="quarterly"):
+        _num = len([0 for _ in utilities.iterate_dates(start_year, stop_year, period="quarterly")])
+
+        for i_date in self._tq(
+            utilities.iterate_dates(start_year, to_date=stop_year, period="quarterly"),
+            total=_num,
+            desc="Extracting Indices",
+        ):
             idx_cache_file = self._get_index_cache_path(i_date)
 
             try:
                 self._logger.info("\tLoading index for %rQ%r", i_date.year, utilities.get_quarter(i_date))
-                dfi = _pd.read_csv(idx_cache_file, **self.edgar_index_args)
+                dfi = pd.read_csv(idx_cache_file, **self.edgar_index_args)
             except FileNotFoundError:
                 self._logger.warning(
                     "No Index cache file at %r (for %rQ%r)", idx_cache_file, i_date.year, utilities.get_quarter(i_date)
@@ -92,11 +121,11 @@ class IndexMaker:
             dfi["Accession"] = dfi.Filename.str.slice(start=-24, stop=-4)
             del dfi["Filename"]
 
-            df = _pd.concat([df, dfi], copy=False)
+            df = pd.concat([df, dfi], copy=False)
 
             self._logger.info("Added %r(%r) to df(%r)", idx_cache_file, len(dfi), len(df))
 
-        df["Date Filed"] = _pd.to_datetime(df["Date Filed"])
+        df["Date Filed"] = pd.to_datetime(df["Date Filed"])
 
         all_forms = df["Form Type"].unique()
         if save_forms is None:
@@ -108,7 +137,7 @@ class IndexMaker:
                 "8-K": ("8-K", "8-K/A"),
             }
 
-        for form, formlist in save_forms.items():
+        for form, formlist in self._tq(save_forms.items(), total=len(save_forms), desc="Exporting Indices"):
             outpath = os.path.join(config.INDEX_ROOT, "form_{}.{}".format(form, config.INDEX_EXTENSION))
 
             self._logger.info("Saving %r: %r", outpath, formlist)
