@@ -82,7 +82,7 @@ class EDGARCacher(object):
         self._logger.debug("Filing root: %r | %r", config.FILING_ROOT, config.FILING_PATH_FORMAT)
         self._logger.debug("Index cache: %r | %r", config.INDEX_CACHE_ROOT, config.INDEX_CACHE_PATH_FORMAT)
         self._logger.debug("Index root: %r | form_*.%s", config.INDEX_ROOT, config.INDEX_EXTENSION)
-        self._logger.debug("Extract regex: %r", self.keep_regex.pattern)
+        self._logger.debug("Extract regex: %r", self.keep_regex.pattern if self.keep_regex else "ALL")
 
     def _handle_nc(self, file_or_str):
         """
@@ -217,11 +217,11 @@ class EDGARCacher(object):
                 EDGAR if they don't exist, or just use the already downloaded files. Default: False.
             overwrite (bool): Flag for whether to overwrite filings if they have already been extracted. Default: False.
         """
-        num_extracted, num_total, num_parsed = 0, 0, 0
+        num_extracted, num_total, num_parsed, i_extracted, i_searched = 0, 0, 0, 0, 0
 
         for i_date in utilities.iterate_dates(from_date, to_date=to_date, period="daily"):
             if download_first:
-                feed_path, _ = edgarweb.download_feed(i_date, overwrite=overwrite, use_requests=self._use_requests)
+                feed_path = edgarweb.download_feed(i_date, overwrite=overwrite, use_requests=self._use_requests)
             else:
                 feed_path = self._get_feed_cache_path(i_date)
 

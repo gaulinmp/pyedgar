@@ -13,13 +13,12 @@ import re
 import os
 import logging
 import datetime as dt
-from time import sleep
 
 # 3rd party imports
 try:
     from tqdm import tqdm
 except ImportError:
-
+    # If tqdm isn't available, just pass through first argument
     def tqdm(_iterable, *args, **kwargs):
         return _iterable
 
@@ -39,7 +38,8 @@ _logger = logging.getLogger(__name__)
 
 def main(start_date=None, last_n_days=30, get_indices=False, get_feeds=False, use_curl_to_download=None):
     """
-    Download feeds and indices.
+    Download feeds and indices. Feeds will be downloaded for `start_date` through yesterday,
+    or for the past `last_n_days` days.
 
     Examples:
         This will download/extract last 30 days of forms and all indices:
@@ -61,40 +61,69 @@ def main(start_date=None, last_n_days=30, get_indices=False, get_feeds=False, us
     if use_curl_to_download is None:
         use_curl_to_download = edgarweb.has_curl()
 
-    rgx = re.compile(config.KEEP_REGEX, re.I) if not config.KEEP_ALL else None
-    _logger.info("From Config: keep regex: %r", rgx)
-    cacher = edgarcache.EDGARCacher(
-        keep_form_type_regex=rgx, check_cik="cik" in config.FILING_PATH_FORMAT, use_requests=not use_curl_to_download
-    )
-
     if start_date is None:
         start_date = dt.date.fromordinal(dt.date.today().toordinal() - last_n_days)
     else:
         start_date = utilities.parse_date_input(start_date)
 
     if get_feeds:
+        cacher = edgarcache.EDGARCacher(
+            keep_form_type_regex=re.compile(config.KEEP_REGEX, re.I) if not config.KEEP_ALL else None,
+            check_cik="cik" in config.FILING_PATH_FORMAT,
+            use_requests=not use_curl_to_download,
+        )
         _logger.info("Downloading since {:%Y-%m-%d}...".format(start_date))
+
         num_dates = len([1 for _ in utilities.iterate_dates(start_date)])
-        for i_date in tqdm(utilities.iterate_dates(start_date), total=num_dates):
+        for i_date in tqdm(utilities.iterate_dates(start_date), total=num_dates, desc="Downloading Feeds"):
             # download one date, so we can track progress with TQDM
-            edgarweb.extract_daily_feeds(i_date, to_date=i_date, download_first=True, overwrite=False)
+            cacher.extract_daily_feeds(i_date, to_date=i_date, download_first=True, overwrite=False)
+
+        _logger.info("Done downloading feeds on {:%Y-%m-%d}...".format(i_date))
 
     if get_indices:
         _logger.info("Downloading and extracting indices")
         # the last index file we find is probably not 'complete' because it was downloaded during the month maybe.
         # Let's make sure that isn't the case
         max_date, last_index = dt.date(1995, 1, 1), None
-        for i_date in utilities.iterate_dates(1995, period='quarterly'):
+        for i_date in utilities.iterate_dates(1995, period="quarterly"):
             _idx = config.get_index_cache_path(i_date)
             if os.path.exists(_idx) and i_date > max_date:
                 max_date, last_index = i_date, _idx
         if last_index is not None:
+            _logger.info("Removing last of the old index caches: %s", last_index)
             os.remove(last_index)
 
-        index_maker = indices.IndexMaker(use_requests=not use_curl_to_download)
+        index_maker = indices.IndexMaker(use_tqdm=True, use_requests=not use_curl_to_download)
         index_maker.extract_indexes()
+        _logger.info("Done downloading and extracting indices")
 
-    _logger.info("Done")
+
+def print_config():
+    """Prints out config file"""
+    clean_user = lambda s: s.replace(os.path.expanduser("~"), "~") if isinstance(s, str) else s
+    _cfloc = config.get_config_file()
+
+    print("pyEDGAR Config File:")
+    if _cfloc is None:
+        print("No config file found in:")
+        for x in config.PREFERRED_CONFIG_DIRECTORIES:
+            if x == os.path.abspath("."):
+                print("\t[current directory]:", end="")
+            print("\t{}/".format(clean_user(x).replace("\\", "/")))
+    else:
+        print("Location: {}".format(clean_user(_cfloc)))
+
+    print("-" * 80)
+    _config = {c: getattr(config, c) for c in dir(config) if c.isupper()}
+    for c in "PREFERRED_CONFIG_DIRECTORIES CONFIG_OBJECT".split():
+        if c in _config:
+            del _config[c]
+
+    _maxlen = max(len(k) for k in _config.keys())
+    for k, v in _config.items():
+        print("{1:>{0}s}: {2}".format(_maxlen, k, clean_user(v)))
+    print("-" * 80)
 
 
 if __name__ == "__main__":
@@ -131,7 +160,10 @@ if __name__ == "__main__":
         "-d", "--download-feeds", action="store_true", dest="get_feeds", help="Download and extract daily feed feeds.",
     )
 
+    argp.add_argument("--config", action="store_true", dest="print_config", help="Print config file settings.")
+
     argp.add_argument(
+        "--log",
         "--log-level",
         dest="log_level",
         default="error",
@@ -145,6 +177,11 @@ if __name__ == "__main__":
     )
 
     logging.basicConfig(level=_log_level)
+
+    _logger.debug("Running with args: %r", cl_args)
+
+    if cl_args.print_config:
+        print_config()
 
     main(
         start_date=cl_args.start_date,

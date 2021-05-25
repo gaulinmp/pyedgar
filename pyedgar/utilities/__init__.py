@@ -150,7 +150,7 @@ def parse_date_input(
     yr_re=__re.compile(r"[12]\d{3}"),
 ):
     """
-    Casts something to a date.
+    Casts something to a date, defaulting to yesterday if nothing is passed in.
     The something can be:
 
         date: dt.date(2000, 1, 1)
@@ -163,7 +163,7 @@ def parse_date_input(
             quarters will be on the 1st day of the 1st month in the quarter.
     """
     if default is None or not hasattr(default, "year"):
-        default = __dt.date.today()
+        default = __dt.date.fromordinal(__dt.date.today().toordinal() - 1)
     _d = None  # keep _d None until it's date, easier for ifs below
 
     if date is None:
@@ -219,7 +219,7 @@ def iterate_dates(from_date, to_date=None, period="daily", skip_weekends=True, i
         from_date (str, datetime, int): Can be datetime, year (int or string), string of format YYYYMMDD
             or YYYY-M-D, or string of format YYYYq[1234].
         to_date (str, datetime, int, None): Can be datetime, year (int or string), string of format YYYYMMDD
-            or YYYY-M-D, or string of format YYYYq[1234]. Default: today.
+            or YYYY-M-D, or string of format YYYYq[1234]. Default: yesterday.
         period (str): Periodicity of dates yielded, either `yearly`, `quarterly`, or `daily`. Default to daily.
         skip_weekends (bool): Flag for whether to skip returning weekends (sat/sun). Default: True.
         inclusive (bool): Flag for whether to include the to_date (or the quarter/year of to_date). Default: True.

@@ -222,10 +222,11 @@ def download_from_edgar(
 
     if not use_requests:
         _logger.info('curl -A "%s" %s -o %s', _useragent, edgar_url, local_path)
-        subp = subprocess.run(["curl", '-A "{}"'.format(_useragent), edgar_url, "-o", local_path])
+        subp = subprocess.run(["curl", '-A "{}"'.format(_useragent), edgar_url, "-o", local_path], capture_output=True)
+        _logger.debug(subp.stdout)
         sleep(sleep_after)
         if subp.returncode != 0:
-            raise Exception("Error %r downloading with curl: %r", subp.returncode, subp.stderr)
+            raise Exception("Error {} downloading with curl: {}".format(subp.returncode, subp.stderr))
     else:
         _logger.info("requests.get(%r, headers=%r) >> %r", edgar_url, REQUEST_HEADERS, local_path)
         try:
@@ -237,7 +238,7 @@ def download_from_edgar(
                             fh.write(chunk)
             sleep(sleep_after)
         except Exception as excp:
-            raise Exception("Error downloading with requests: %r", excp) from excp
+            raise Exception("Error downloading with requests: {}".format(excp)) from excp
 
         # Now check what we downloaded was what we expected
         try:
@@ -264,7 +265,7 @@ def download_feed(date, overwrite=False, use_requests=False, overwrite_size_thre
         sleep_after (int): Number of seconds to sleep after downloading file (default 0)
 
     Returns:
-        tuple: output file path, return code
+        str: output file path
     """
     date = utilities.parse_date_input(date)
 
