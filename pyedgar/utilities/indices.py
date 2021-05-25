@@ -140,7 +140,8 @@ class IndexMaker:
         for form, formlist in self._tq(save_forms.items(), total=len(save_forms), desc="Exporting Indices"):
             outpath = os.path.join(config.INDEX_ROOT, "form_{}.{}".format(form, config.INDEX_EXTENSION))
 
-            self._logger.info("Saving %r: %r", outpath, formlist)
+            self._logger.info("Saving %r to %r", form, outpath)
+            self._logger.debug("Saving %s to %s with form-types: %r", form, outpath, formlist)
 
             (
                 df[df["Form Type"].isin(formlist)]
