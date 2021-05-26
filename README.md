@@ -53,7 +53,7 @@ Filing objects have the following properties:
 
 * ``path``: path to cached filing on disk
 * ``urls``: URLs the EDGAR website location for the full text file and the index file
-* ``full_text``: Full text of the entire .nc filing (not just the first document)
+* ``full_text``: Full text of the entire `.nc` filing (not just the first document)
 * ``headers``: Dictionary of all the headers from the full filing (i.e. not the exhibits). E.g. CIK, ACCESSION, PERIOD, etc.
 * ``type``: The general type of the document, extracted from the TYPE header and cleaned up (so 10-K405 --> 10-K)
 * ``type_exact``: The exact text extracted from the TYPE field
@@ -141,6 +141,36 @@ print(config.CONFIG_FILE)
 #     ALERT!!!! FILING_PATH_FORMAT is '{accession[11:13]}/{accession}.nc'.
 #     [~]/Dropbox/config/pyedgar/hades.desb.pyedgar.conf
 ```
+
+## downloader
+
+There is a convenience downloader script, for downloading filing feed files and indexes.
+
+To see the status of current cached downloads (shows the latest downloaded files) and to see the config setup:
+
+```bash
+$ python -m pyedgar.downloader --status --config
+```
+
+To download and extract index files:
+
+```bash
+$ python -m pyedgar.downloader -i --log info
+```
+
+And to download and extract the last 30 days of filings:
+
+```bash
+$ python -m pyedgar.downloader -d
+```
+
+To download and extract filings since the beginning:
+
+```bash
+$ python -m pyedgar.downloader -d --start-date 1995-01-01
+```
+
+
 
 ## Install
 

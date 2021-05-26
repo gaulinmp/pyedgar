@@ -2,7 +2,7 @@
 """
 Base class for EDGAR filing.
 
-:copyright: © 2020 by Mac Gaulin
+:copyright: © 2021 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 

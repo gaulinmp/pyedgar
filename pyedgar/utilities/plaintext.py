@@ -4,7 +4,7 @@ General utilities for interacting with plaintext documents.
 
 EDGAR document specification details: https://www.sec.gov/info/edgar/pdsdissemspec051310.pdf
 
-:copyright: © 2020 by Mac Gaulin
+:copyright: © 2021 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 

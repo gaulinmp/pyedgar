@@ -2,7 +2,7 @@
 """
 Utilities for interacting with edgar forms.
 
-:copyright: © 2020 by Mac Gaulin
+:copyright: © 2021 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 

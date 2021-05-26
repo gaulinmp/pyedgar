@@ -35,7 +35,7 @@ setup(
     keywords='SEC EDGAR filings',
     url='https://github.com/gaulinmp/pyedgar',
     author='Mac Gaulin',
-    author_email='git@mgaulin.com',
+    author_email='gaulinmp+pyedgar@gmail.com',
     license='MIT',
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -53,12 +53,13 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
     packages=find_packages(),
     include_package_data=True,
-    install_requires=[],
+    install_requires=['pandas', 'requests'],
     extras_require={
-        'dev': ['bs4'],
+        'dev': ['bs4', 'tqdm'],
         # 'test': ['coverage'],
     },
 )
