@@ -20,10 +20,6 @@ import pandas as pd
 # Module Imports
 from pyedgar import config
 from pyedgar.utilities.indices import IndexMaker as _IndexMaker
-# from pyedgar.utilities import edgarweb
-# from pyedgar.utilities import edgarcache
-# from pyedgar.utilities import forms
-# from pyedgar.utilities import localstore
 
 
 class EDGARIndex():
