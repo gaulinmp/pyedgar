@@ -111,6 +111,7 @@ class IndexMaker:
                 self._logger.warning(
                     "No Index cache file at %r (for %rQ%r)", idx_cache_file, i_date.year, utilities.get_quarter(i_date)
                 )
+                continue
             except Exception:
                 self._logger.warning(
                     "Reading %r failed at %rQ%r", idx_cache_file, i_date.year, utilities.get_quarter(i_date)
