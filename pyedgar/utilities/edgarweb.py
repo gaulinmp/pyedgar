@@ -171,9 +171,26 @@ def download_form_from_web(cik, accession=None):
             continue
 
 
+def use_subprocess(process_list):
+    """Call subprocess.run, but allow for backwards compatability with python <3.7 that doesn't have `capture_output`.
+
+    Args:
+        process_list (list): Argument list passed to `subprocess.run`.
+
+    Returns:
+        subprocess.CompletedProcess: Process object.
+    """
+    try:
+        return subprocess.run(process_list, capture_output=True)
+    except TypeError:
+        return subprocess.run(process_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except AttributeError:
+        return subprocess.call(process_list)
+
+
 def has_curl():
     try:
-        subp = subprocess.run(["curl", '-A "pyedgar test"', "https://www.google.com"], capture_output=True)
+        use_subprocess(["curl", '-A "pyedgar test"', "https://www.google.com"])
     except FileNotFoundError:
         # apparently if curl isn't found it's FileNotFoundError.
         return False
@@ -190,6 +207,7 @@ def download_from_edgar(
     chunk_size=10 * 1024 ** 2,
     overwrite_size_threshold=-1,
     sleep_after=0,
+    force_make_index_cache_directory=True,
 ):
     """
     Generic downloader, uses curl by default unless use_requests=True is passed in.
@@ -207,7 +225,10 @@ def download_from_edgar(
         (str, None): Returns path of downloaded file (or None if download failed).
     """
     if not os.path.exists(os.path.dirname(local_path)):
-        raise FileNotFoundError("Trying to write to non-existant directory: {}".format(os.path.dirname(local_path)))
+        if force_make_index_cache_directory:
+            os.makedirs(os.path.dirname(local_path))
+        else:
+            raise FileNotFoundError("Trying to write to non-existant directory: {}".format(os.path.dirname(local_path)))
 
     if os.path.exists(local_path):
         loc_size = os.path.getsize(local_path)
@@ -222,7 +243,7 @@ def download_from_edgar(
 
     if not use_requests:
         _logger.debug('curl -A "%s" %s -o %s', _useragent, edgar_url, local_path)
-        subp = subprocess.run(["curl", '-A "{}"'.format(_useragent), edgar_url, "-o", local_path], capture_output=True)
+        subp = use_subprocess(["curl", '-A "{}"'.format(_useragent), edgar_url, "-o", local_path])
         _logger.debug(subp.stdout)
         sleep(sleep_after)
         if subp.returncode != 0:
