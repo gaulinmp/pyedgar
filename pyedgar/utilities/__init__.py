@@ -65,7 +65,7 @@ def get_cik_acc(*args, additional_extract=None, accession_pattern=__re.compile("
         return None
 
     if len(args):
-        # Here, look for cik & acc, put the rest into
+        # Here, look for cik & acc, put the rest into the args/kwargs key
         for arg in args:
             if arg is None:
                 continue
@@ -110,7 +110,7 @@ def get_cik_acc(*args, additional_extract=None, accession_pattern=__re.compile("
 
     if len(kwargs):
         try:
-            # int of float because pandas might convert cik to float
+            # int of float of input, because pandas might convert cik to float
             _ret["cik"] = int(float(kwargs["cik"]))
         except (ValueError, TypeError, KeyError):
             # Wasn't the right type/parseable, or no cik key

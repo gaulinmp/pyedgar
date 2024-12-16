@@ -1,6 +1,12 @@
 # pyedgar
 
-Python package for downloading EDGAR documents and data
+Python package for downloading EDGAR documents and data.
+
+[![PyPI version shields.io](https://img.shields.io/pypi/v/pyedgar.svg)](https://pypi.python.org/pypi/pyedgar/)
+[![PyPI license](https://img.shields.io/pypi/l/pyedgar.svg)](https://pypi.python.org/pypi/pyedgar/)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/pyedgar.svg)](https://pypi.python.org/pypi/pyedgar/)
+[![GitHub latest commit](https://badgen.net/github/last-commit/gaulinmp/pyedgar)](https://GitHub.com/gaulinmp/pyedgar/commit/)
+
 
 
 ## Usage

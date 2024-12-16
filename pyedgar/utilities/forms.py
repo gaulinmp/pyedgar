@@ -52,7 +52,7 @@ def get_full_filing(file_path, encoding=None, errors="ignore"):
         FileNotFoundError: Raised if file doesn't exist.
     """
     if not os.path.exists(file_path):
-        raise FileNotFoundError("File {} does not exist.".format(file_path))
+        raise FileNotFoundError(f"File {file_path} does not exist.")
 
     with open(file_path, encoding=encoding or ENCODING_INPUT, errors=errors or "ignore") as fh:
         return fh.read()

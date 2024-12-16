@@ -2,6 +2,71 @@
 """
 Base class for EDGAR filing.
 
+Meant to be easily overridden. For example, to create a filing class that allows for easy extraction of
+BeautifulSoup documents and local caching (e.g. if reading from edgar website):
+
+```python
+import os
+from bs4 import BeautifulSoup
+from IPython.display import display_html
+import pyedgar
+from pyedgar.utilities import htmlparse
+
+class Filing(pyedgar.Filing):
+    # caches filings in a directory next to this file called data/cache
+    DATA_ROOT = "data"
+
+    @property
+    def cache_path(self):
+        return os.path.join(self.DATA_ROOT, 'cache', self.accession.split('-')[1], f"{self.accession}.txt")
+
+    def _cache_local(self, doc_to_cache):
+        try:
+            with open(self.cache_path, 'w') as fh:
+                fh.write(doc_to_cache)
+        except FileNotFoundError:
+            # ## directory doesn't exists, make it and recall. If the parent doesn't exist either
+            #  (the cache folder) then it'll error out below, so no infinite recursion.
+            os.mkdir(os.path.dirname(self.cache_path))
+            return self._cache_local(doc_to_cache)
+        except Exception:
+            # I guess caching didn't work...
+            return doc_to_cache
+
+    def _post_init_hook(self, **kwargs):
+        self._local_cache = True
+        if os.path.exists(self.cache_path):
+            self._filing_local_path = self.cache_path
+
+        for k,v in kwargs.items():
+            if k not in self.__dict__:
+                setattr(self, k, v)
+
+    def _set_full_text(self):
+        _txt = super()._set_full_text()
+
+        try:
+            if not os.path.exists(self.cache_path):
+                self._cache_local(_txt)
+        except Exception:
+            pass
+
+        return _txt
+
+    def is_html(self, docnum=0, *args, **kwargs):
+        return htmlparse.is_html(self.documents[docnum]['full_text'], *args, **kwargs)
+
+    def soup(self, docnum=0, *args, **kwargs):
+        return BeautifulSoup(self.documents[docnum]['full_text'], *args, **kwargs)
+
+    def print(self, docnum=0):
+        '''jupyter notebook aware print function'''
+        if self.is_html(docnum):
+            display_html(self.documents[docnum]['full_text'], raw=True)
+        else:
+            print(self.documents[docnum]['full_text'])
+```
+
 :copyright: © 2021 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
@@ -10,11 +75,14 @@ Base class for EDGAR filing.
 import re
 import logging
 
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    pass
+
 from pyedgar import config
-from pyedgar.utilities import edgarweb
-from pyedgar.utilities import forms
+from pyedgar.utilities import get_cik_acc, edgarweb, forms, localstore, htmlparse
 from pyedgar.utilities.forms import FORMS
-from pyedgar.utilities import localstore
 
 
 class Filing(object):
@@ -61,7 +129,8 @@ class Filing(object):
         flat_headers=True,
         omit_duplicate_headers=False,
         duplicate_headers_as_list=True,
-        **kwargs
+        read_kwargs=None,
+        **kwargs,
     ):
         """
         Initialization sets CIK, Accession, and optionally
@@ -86,6 +155,7 @@ class Filing(object):
                 if True will return the header values as a list (e.g. ['5.02',
                 '5.07', '9.01']). If False will add _# to duplicate header names.
                 Default: True.
+            read_kwargs (dict, None): Dictionary passed as read args. Defaults to None.
 
         Returns:
             Filing object.
@@ -95,27 +165,55 @@ class Filing(object):
         """
         self.__log = logging.getLogger("pyedgar.filing.Filing")
 
+        if accession is None:
+            try:
+                _ac = get_cik_acc(cik)
+                cik, accession = _ac['cik'], _ac['accession']
+            except TypeError as exc:
+                raise ValueError(f"CIK/Accession input not formatted as expected. Got: {cik}/{accession}") from exc
+
         self._set_cik(cik)
         self._set_accession(accession)
 
         self._local_cache = use_cache if use_cache is not None else config.CACHE_FEED
         self._web_fallback = web_fallback
 
-        self.read_args = kwargs
+        self.read_args = read_kwargs or {}
         self.header_args = {
             "flat": flat_headers,
             "omit_duplicates": omit_duplicate_headers,
             "add_int_to_name": not duplicate_headers_as_list,
         }
 
+        self._post_init_hook(**kwargs)
+
+    def _post_init_hook(self, **kwargs):
+        """
+        Post init hook, called at the end of init. Used for hooking into initialization and gets
+        all extra keyword arguments passed to init.
+
+        Empty by default, but used to do things like store data, handle local caching, etc. Example::
+
+        ```python
+        def gvkeyFiling(pyedgar.filing.Filing):
+            def _post_init_hook(self, **kwargs):
+                self.gvkey = kwargs.get('gvkey', -1)
+        ```
+        """
+        return self
+
     def __repr__(self):
-        return "<EDGAR filing ({}/{}) Headers:{}, Text:{}, Documents:{}>".format(
-            self.cik, self.accession, bool(self._headers), bool(self._full_text), bool(self._documents),
+        return (
+            f"<EDGAR filing ({self.cik}/{self.accession}) Loaded Headers:{bool(self._headers)}, "
+            f"Text:{bool(self._full_text)}, Documents:{bool(self._documents)}>"
         )
 
     def __str__(self):
         return self.__repr__()
 
+    #===================================================================================================================
+    #             Helper functions
+    #===================================================================================================================
     def _set_cik(self, cik=None):
         """
         Set cik on object, verifying format is CIK-like.
@@ -132,9 +230,9 @@ class Filing(object):
         try:
             if cik is not None:
                 self._cik = int(cik)
-        except ValueError:
+        except ValueError as exc:
             # They didn't pass in a CIK that looked like a number
-            raise ValueError("CIKs must be numeric variables," " you passed in {}".format(cik))
+            raise ValueError(f"CIKs must be numeric variables, you passed in {cik}") from exc
 
         return self._cik
 
@@ -157,15 +255,14 @@ class Filing(object):
         try:
             if accession and localstore.ACCESSION_RE.search(accession):
                 if len(accession) == 18:
-                    self._accession = "{}-{}-{}".format(accession[:10], accession[10:12], accession[12:])
+                    self._accession = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
                 else:
                     self._accession = accession
-        except TypeError:
+        except TypeError as exc:
             # They didn't pass in an accession that was a string.
             raise ValueError(
-                "Accessions must be 18/20 character strings of format"
-                " ##########-##-######, you passed in {}".format(accession)
-            )
+                f"Accessions must be 18/20 character strings of format ##########-##-######, you passed in {accession}"
+            ) from exc
 
         return self.accession
 
@@ -190,14 +287,15 @@ class Filing(object):
                 try:
                     self._full_text = forms.get_full_filing(self.path, **self.read_args)
                     return self._full_text
-                except FileNotFoundError:
-                    msg = "Filing not found for CIK:{} / Accession:{}".format(self.cik, self.accession)
+                except FileNotFoundError as exc:
+                    msg = f"Filing not found for CIK:{self.cik} / Accession:{self.accession}"
                     self.__log.debug(msg)
                     if not self._web_fallback:
-                        raise FileNotFoundError(msg)
+                        raise FileNotFoundError(msg) from exc
 
-            self.__log.debug("Downloading from EDGAR web: %d/%s", self.cik, self.accession)
-            self._full_text = edgarweb.download_form_from_web(self.cik, self.accession)
+            if self._web_fallback:
+                self.__log.debug("Downloading from EDGAR web: %d/%s", self.cik, self.accession)
+                self._full_text = edgarweb.download_form_from_web(self.cik, self.accession)
 
         return self._full_text
 
@@ -273,6 +371,9 @@ class Filing(object):
 
         return self._documents
 
+    #===================================================================================================================
+    #             Properties
+    #===================================================================================================================
     cik = property(fget=lambda self: self._cik, fset=_set_cik)
     accession = property(fget=lambda self: self._accession, fset=_set_accession)
 
@@ -347,7 +448,8 @@ class Filing(object):
         Returns:
             str: Full type string of the document from the header.
         """
-        return self._type or self._set_type()
+        self.type
+        return self._type_exact
 
     @property
     def documents(self):
@@ -361,6 +463,10 @@ class Filing(object):
         """
         return self._documents or self._set_documents()
 
+
+    #===================================================================================================================
+    #             Method functions
+    #===================================================================================================================
     def get_sequence_number(self, sequence_number):
         """
         Access exhibits (or main filing) by sequence number (1-indexed).
@@ -429,3 +535,22 @@ class Filing(object):
                 ret.append(doc)
 
         return ret
+
+
+class HTMLFiling(Filing):
+    """
+    Filing with convenience functions for dealing with HTML documents. Adds the classes:
+
+    * `is_html()`: Boolean flag for whether specified document (`docnum=X`) is HTML format
+    * `soup()`: Returns a BeautifulSoup object of specified document (note: does not check is_html)
+    """
+    def is_html(self, docnum=0, **kwargs):
+        return htmlparse.is_html(self.documents[docnum]['full_text'], **kwargs)
+
+    def soup(self,  *args, docnum=0, **kwargs):
+        """
+        Returns the document at `docnum` as a BeautifulSoup object.
+        Args/Kwargs are passed along to BeautifulSoup, so docnum must be specified as a keyword argument,
+         e.g.: `filing.soup('lxml', docnum=1)`
+        """
+        return BeautifulSoup(self.documents[docnum]['full_text'], *args, **kwargs)

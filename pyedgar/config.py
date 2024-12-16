@@ -70,7 +70,7 @@ KEEP_ALL=True
 KEEP_REGEX=
 
 ; User Agent for downloading, to keep the SEC happy
-USER_AGENT=pyedgar feed download by YOUREMAIL@example.com, from code at https://github.com/gaulinmp/pyedgar
+USER_AGENT=pyedgar feed download by YOUREMAIL@sec.gov, from code at https://github.com/gaulinmp/pyedgar
 
 [Index]
 ; Index file settings
@@ -196,7 +196,7 @@ _defaults = {
     "KEEP_REGEX": "",
     "INDEX_DELIMITER": "\t",
     "INDEX_EXTENSION": "tab",
-    "USER_AGENT": "pyedgar feed download by YOUREMAIL@example.com, from code at https://github.com/gaulinmp/pyedgar",
+    "USER_AGENT": "pyedgar feed download by YOUREMAIL@sec.gov, from code at https://github.com/gaulinmp/pyedgar",
 }
 
 CONFIG_FILE = get_config_file()

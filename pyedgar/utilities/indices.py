@@ -93,7 +93,7 @@ class IndexMaker:
             self.download_indexes(start_year=start_year, stop_year=stop_year, overwrite=overwrite)
             self._logger.info("Done downloading quarterly indices.")
 
-        df = pd.DataFrame()
+        df = []
 
         _num = len([0 for _ in utilities.iterate_dates(start_year, stop_year, period="quarterly")])
 
@@ -122,10 +122,16 @@ class IndexMaker:
             dfi["Accession"] = dfi.Filename.str.slice(start=-24, stop=-4)
             del dfi["Filename"]
 
-            df = pd.concat([df, dfi], copy=False)
+            df.append(dfi)
 
-            self._logger.info("Added %r(%r) to df(%r)", idx_cache_file, len(dfi), len(df))
+            self._logger.info("Added %r(%r) to list(%r)", idx_cache_file, len(dfi), len(df))
 
+        # Solve Issue #8
+        if not df:
+            self._logger.warning("No indices found!")
+            return None
+
+        df = pd.concat(df)
         df["Date Filed"] = pd.to_datetime(df["Date Filed"])
 
         all_forms = df["Form Type"].unique()

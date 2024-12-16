@@ -100,6 +100,7 @@ def main(start_date=None, last_n_days=30, get_indices=False, get_feeds=False, us
 
 
 def print_cache_status():
+    """Prints out the last found cache files for feeds and indices."""
     for i_date in reversed(list(utilities.iterate_dates(1995))):
         _feedfile = config.get_feed_cache_path(i_date)
         if os.path.exists(_feedfile):
