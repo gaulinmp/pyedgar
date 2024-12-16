@@ -2,7 +2,7 @@
 """
 Exceptions for the project.
 
-:copyright: © 2021 by Mac Gaulin
+:copyright: © 2025 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 

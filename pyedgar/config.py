@@ -70,7 +70,7 @@ KEEP_ALL=True
 KEEP_REGEX=
 
 ; User Agent for downloading, to keep the SEC happy
-USER_AGENT=pyedgar feed download by YOUREMAIL@sec.gov, from code at https://github.com/gaulinmp/pyedgar
+USER_AGENT=University of Utah, Accounting Department, mac.gaulin@utah.edu
 
 [Index]
 ; Index file settings
@@ -80,7 +80,7 @@ INDEX_DELIMITER=\t
 INDEX_EXTENSION=tab.gz
 ```
 
-:copyright: © 2021 by Mac Gaulin
+:copyright: © 2025 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
@@ -196,7 +196,7 @@ _defaults = {
     "KEEP_REGEX": "",
     "INDEX_DELIMITER": "\t",
     "INDEX_EXTENSION": "tab",
-    "USER_AGENT": "pyedgar feed download by YOUREMAIL@sec.gov, from code at https://github.com/gaulinmp/pyedgar",
+    "USER_AGENT": "University of Utah, Accounting Department, mac.gaulin@utah.edu",
 }
 
 CONFIG_FILE = get_config_file()

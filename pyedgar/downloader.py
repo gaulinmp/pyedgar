@@ -4,7 +4,7 @@
 High level downloading functionality, using lower-level download routines from `pyedgar.utilities`
 
 
-:copyright: © 2021 by Mac Gaulin
+:copyright: © 2025 by Mac Gaulin
 :license: MIT, see LICENSE for more details.
 """
 
