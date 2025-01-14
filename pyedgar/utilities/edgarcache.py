@@ -95,7 +95,7 @@ class EDGARCacher(object):
         If check_cik is True, it extracts and adds 'cik'.
         """
         try:
-            txt = file_or_str.read()
+            txt = file_or_str.read().replace(b"\r", b"\n")
         except AttributeError:
             txt = file_or_str
 
