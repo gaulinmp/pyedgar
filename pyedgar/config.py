@@ -327,6 +327,7 @@ def format_filing_path(**kwargs):
 def format_feed_cache_path(datetime_in):
     """
     Formats feed cache path on a given date (from date-time input).
+    Allows a date-time input, and provides year and quarter to the formatting well.
     """
     # Get that thing from above.
     global FEED_CACHE_PATH_FORMAT
@@ -334,12 +335,24 @@ def format_feed_cache_path(datetime_in):
     if isinstance(datetime_in, int):
         datetime_in = dt.date.fromordinal(datetime_in)
 
+    def get_yr_qtr_from_str(yq_string, *, yr_re=re.compile(r"([12]\d{3})Q?([1234])", re.I)):
+        """Get year/qtr from string"""
+        yq = yr_re.search(yq_string)
+        return tuple(int(x) for x in yq.groups()) if yq else (1990, 0)
+
+    try:
+        year = datetime_in.year
+        qtr = (datetime_in.month - 1) // 3 + 1
+    except AttributeError:
+        year, qtr = get_yr_qtr_from_str(datetime_in)
+
     # Pass datetime as both the first arg and as date=,
     # in case the config file assumes positional data
-    _logger.debug("FEED_CACHE_PATH_FORMAT:%r.format(date=%s)",
-                  FEED_CACHE_PATH_FORMAT, datetime_in)
+    _logger.debug(
+        "FEED_CACHE_PATH_FORMAT:%r.format(date=%s, year=%d, quarter=%d)", FEED_CACHE_PATH_FORMAT, datetime_in, year, qtr
+    )
 
-    return FEED_CACHE_PATH_FORMAT.format(datetime_in, date=datetime_in)
+    return FEED_CACHE_PATH_FORMAT.format(datetime_in, date=datetime_in, year=year, quarter=qtr)
 
 
 def format_index_cache_path(datetime_or_yearQN_str):
