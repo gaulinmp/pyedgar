@@ -97,7 +97,7 @@ class EDGARCacher(object):
         try:
             txt = file_or_str.read().replace(b"\r", b"\n")
         except AttributeError:
-            txt = file_or_str
+            txt = file_or_str.replace("\r", "\n")
 
         if not txt:
             raise InputTypeError("No text of file object found")
