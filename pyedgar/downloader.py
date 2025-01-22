@@ -172,6 +172,16 @@ if __name__ == "__main__":
     )
 
     argp.add_argument(
+        "-s",
+        "--end-date",
+        default=None,
+        dest="end_date",
+        metavar="YYYY-MM-DD",
+        type=utilities.parse_date_input,
+        help="An optional date to end downloading feeds/indices at (of form YYYY-MM-DD).",
+    )
+
+    argp.add_argument(
         "-n",
         "--last-n-days",
         default=30,
