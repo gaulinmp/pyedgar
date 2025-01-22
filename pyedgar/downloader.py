@@ -36,7 +36,7 @@ from pyedgar.utilities import indices
 _logger = logging.getLogger(__name__)
 
 
-def main(start_date=None, last_n_days=30, get_indices=False, get_feeds=False, use_curl_to_download=None):
+def main(start_date=None, end_date= None,last_n_days=30, get_indices=False, get_feeds=False, use_curl_to_download=None):
     """
     Download feeds and indices. Feeds will be downloaded for `start_date` through yesterday,
     or for the past `last_n_days` days.
@@ -65,17 +65,24 @@ def main(start_date=None, last_n_days=30, get_indices=False, get_feeds=False, us
         start_date = dt.date.fromordinal(dt.date.today().toordinal() - last_n_days)
     else:
         start_date = utilities.parse_date_input(start_date)
-
+    
+    if end_date is None: 
+        end_date = dt.date.today()
+    else:
+        end_date = utilities.parse_date_input(end_date)
+    
     if get_feeds:
         cacher = edgarcache.EDGARCacher(
             keep_form_type_regex=re.compile(config.KEEP_REGEX, re.I) if not config.KEEP_ALL else None,
             check_cik="cik" in config.FILING_PATH_FORMAT,
             use_requests=not use_curl_to_download,
         )
-        _logger.info("Downloading since {:%Y-%m-%d}...".format(start_date))
+        _logger.info("Downloading From {:%Y-%m-%d}...".format(start_date))
+        _logger.info("To {:%Y-%m-%d}...".format(end_date))
+        
 
-        num_dates = len([1 for _ in utilities.iterate_dates(start_date)])
-        for i_date in tqdm(utilities.iterate_dates(start_date), total=num_dates, desc="Downloading Feeds"):
+        num_dates = len([1 for _ in utilities.iterate_dates(start_date,end_date)])
+        for i_date in tqdm(utilities.iterate_dates(start_date, end_date), total=num_dates, desc="Downloading Feeds"):
             # download one date, so we can track progress with TQDM
             cacher.extract_daily_feeds(i_date, to_date=i_date, download_first=True, overwrite=False)
 
