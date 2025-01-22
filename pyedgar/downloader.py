@@ -173,7 +173,7 @@ if __name__ == "__main__":
     )
 
     argp.add_argument(
-        "-s",
+        "-e",
         "--end-date",
         default=None,
         dest="end_date",
