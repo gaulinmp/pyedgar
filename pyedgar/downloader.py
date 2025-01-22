@@ -52,6 +52,7 @@ def main(start_date=None, end_date= None,last_n_days=30, get_indices=False, get_
 
     Args:
         start_date (date): Date to start extraction of feeds from. When empty, defaults to today() - last_n_days
+        end_date (date): Date to end extraction of feeds at. When empty, defaults to today()
         last_n_days (int): If start_date is missing, extract this number days before today. Default: 30
         get_indices (bool): Flag to download and extract index files. Default: False
         get_feeds (bool): Flag to download daily feed files since `start_date` or for `last_n_days`. Default: False
@@ -226,6 +227,7 @@ if __name__ == "__main__":
 
     main(
         start_date=cl_args.start_date,
+        end_date=cl_args.end_date,
         last_n_days=cl_args.last_n_days,
         get_indices=cl_args.get_indices,
         get_feeds=cl_args.get_feeds,
