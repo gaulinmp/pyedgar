@@ -3,6 +3,7 @@
 nc_examples/
 docs/
 *.pyedgar.conf
+*-checkpoint.ipynb
 
 
 # Byte-compiled / optimized / DLL files

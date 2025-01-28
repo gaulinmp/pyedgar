@@ -150,30 +150,36 @@ print(config.CONFIG_FILE)
 
 ## downloader
 
-There is a convenience downloader script, for downloading filing feed files and indexes.
+There is a convenience downloader CLI, for downloading filing feed files and indexes.
 
 To see the status of current cached downloads (shows the latest downloaded files) and to see the config setup:
 
 ```bash
-$ python -m pyedgar.downloader --status --config
+$ python -m pyedgar --status --config
 ```
 
-To download and extract index files:
+This will download and extract the indices (you can use -s and -e to specify years/dates to download):
 
 ```bash
-$ python -m pyedgar.downloader -i --log info
+$ python -m pyedgar -i
 ```
 
-And to download and extract the last 30 days of filings:
+This will download and extract the last 30 days of forms:
 
 ```bash
-$ python -m pyedgar.downloader -d
+$ python -m pyedgar -d -x --last-n-days 30
 ```
 
-To download and extract filings since the beginning:
+This will only download the daily feed files in 1998:
 
 ```bash
-$ python -m pyedgar.downloader -d --start-date 1995-01-01
+$ python -m pyedgar -d -s 1998 -e 1999
+```
+
+This will only extract all daily feed files:
+
+```bash
+$ python -m pyedgar -x -s 1994
 ```
 
 
