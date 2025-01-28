@@ -22,11 +22,11 @@ from pyedgar.utilities import edgarweb
 
 # progress logging
 try:
+    def no_tqdm(iterable, *args, **kwargs):
+        return iterable
     from tqdm import tqdm
 except ImportError:
-
-    def tqdm(_iterable, *args, **kwargs):
-        return _iterable
+    tqdm = no_tqdm
 
 
 class IndexMaker:
@@ -55,50 +55,41 @@ class IndexMaker:
         self._use_requests = use_requests
         self._get_index_cache_path = config.get_index_cache_path
 
-        if use_tqdm:
-            self._tq = tqdm
-        else:
+        self._tqdm = tqdm if use_tqdm else no_tqdm
 
-            def _tq(_iterable, *args, **kwargs):
-                return _iterable
-
-            self._tq = _tq
-
-    def download_indexes(self, start_year=1995, stop_year=None, overwrite=False):
+    def download_indexes(self, start_date=1995, end_date=None, overwrite=False):
         """Download multiple edgar quarterly index compressed files.
 
         Args:
-            start_year (int, datetime, None): Starting year (or datetime from which we'll extract year/quarter). Default to 1995.
-            stop_year (int, datetime, None): Ending year (or datetime from which we'll extract year/quarter). Default to today's year.
+            start_date (int, datetime, None): Starting datetime (from which we'll extract year/quarter) or year. Default to 1995.
+            end_date (int, datetime, None): Ending datetime (from which we'll extract year/quarter) or year. Default to today's year.
             overwrite (bool): Flag for whether to overwrite any existing file (default False).
-            use_requests (bool): Flag for whether to use requests or curl (default False == curl).
-            overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded.
 
         Returns:
             tuple: output file path, return code
         """
-        _num = len([0 for _ in utilities.iterate_dates(start_year, stop_year, period="quarterly")])
+        _num = len([0 for _ in utilities.iterate_dates(start_date, end_date, period="quarterly")])
 
         # The download recursively works as it sounds, but we want progress bar, so do it date by date
-        for i_date in self._tq(
-            utilities.iterate_dates(start_year, stop_year, period="quarterly"), total=_num, desc="Downloading Indices"
+        for i_date in self._tqdm(
+            utilities.iterate_dates(start_date, end_date, period="quarterly"), total=_num, desc="Downloading Indices"
         ):
             edgarweb.download_indexes_recursively(
                 i_date, end_date=i_date, overwrite=overwrite, use_requests=self._use_requests
             )
 
-    def extract_indexes(self, start_year=1995, stop_year=None, save_forms=None, download_first=True, overwrite=False):
+    def extract_indexes(self, start_date=1995, end_date=None, save_forms=None, download_first=True, overwrite=False):
         if download_first:
             self._logger.info("Downloading the quarterly indices...")
-            self.download_indexes(start_year=start_year, stop_year=stop_year, overwrite=overwrite)
+            self.download_indexes(start_date=start_date, end_date=end_date, overwrite=overwrite)
             self._logger.info("Done downloading quarterly indices.")
 
         df = []
 
-        _num = len([0 for _ in utilities.iterate_dates(start_year, stop_year, period="quarterly")])
+        _num = len([0 for _ in utilities.iterate_dates(start_date, end_date, period="quarterly")])
 
-        for i_date in self._tq(
-            utilities.iterate_dates(start_year, to_date=stop_year, period="quarterly"),
+        for i_date in self._tqdm(
+            utilities.iterate_dates(start_date, to_date=end_date, period="quarterly"),
             total=_num,
             desc="Extracting Indices",
         ):
@@ -144,7 +135,7 @@ class IndexMaker:
                 "8-K": ("8-K", "8-K/A"),
             }
 
-        for form, formlist in self._tq(save_forms.items(), total=len(save_forms), desc="Exporting Indices"):
+        for form, formlist in self._tqdm(save_forms.items(), total=len(save_forms), desc="Exporting Indices"):
             outpath = os.path.join(config.INDEX_ROOT, "form_{}.{}".format(form, config.INDEX_EXTENSION))
 
             self._logger.info("Saving %r to %r", form, outpath)
