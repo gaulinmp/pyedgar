@@ -21,6 +21,13 @@ import re
 import tarfile
 import logging
 
+def no_tqdm(iterable, *args, **kwargs):
+    return iterable
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = no_tqdm
+
 # 3rd party imports
 
 # Module Imports
@@ -77,6 +84,8 @@ class EDGARCacher(object):
         self._get_filing_path = localstore.get_filing_path
         self._get_feed_cache_path = config.get_feed_cache_path
         self._get_index_cache_path = config.get_index_cache_path
+
+        self._tqdm = tqdm if use_tqdm else no_tqdm
 
         self._logger.debug("Feed cache: %r | %r", config.FEED_CACHE_ROOT, config.FEED_CACHE_PATH_FORMAT)
         self._logger.debug("Filing root: %r | %r", config.FILING_ROOT, config.FILING_PATH_FORMAT)
@@ -205,7 +214,17 @@ class EDGARCacher(object):
 
         return i_done, i_tot
 
-    def extract_daily_feeds(self, from_date, to_date=None, download_first=False, overwrite=False):
+    def iterate_over_days(self, from_date, to_date=None, message="Downloading Feeds"):
+        """
+        Iterate over days from `from_date` to `to_date` (inclusive).
+        """
+        num_dates = len([1 for _ in utilities.iterate_dates(from_date, to_date=to_date, period="daily")])
+        for i_date in self._tqdm(
+            utilities.iterate_dates(from_date, to_date=to_date, period="daily"), total=num_dates, desc=message
+        ):
+            yield i_date
+
+    def extract_daily_feeds(self, from_date, to_date=None, download_first=False, overwrite=False, message="Extracting Feeds"):
         """
         Loop through daily feed compressed files and extract them to local cache.
         Uses the object's path formatter to determine file paths.
@@ -219,7 +238,10 @@ class EDGARCacher(object):
         """
         num_extracted, num_total, num_parsed, i_extracted, i_searched = 0, 0, 0, 0, 0
 
-        for i_date in utilities.iterate_dates(from_date, to_date=to_date, period="daily"):
+        if download_first:
+            message = f"Downloading and {message}"
+
+        for i_date in self.iterate_over_days(from_date, to_date, message=message):
             if download_first:
                 feed_path = edgarweb.download_feed(i_date, overwrite=overwrite, use_requests=self._use_requests)
             else:
