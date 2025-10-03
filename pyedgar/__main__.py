@@ -35,6 +35,7 @@ import logging
 from argparse import ArgumentParser
 
 # Module Imports
+from pyedgar import config
 from pyedgar import downloader
 from pyedgar import utilities
 
@@ -95,6 +96,14 @@ argp.add_argument(
     help="Extract filings from daily feeds.",
 )
 
+argp.add_argument(
+    "-o",
+    "--overwrite",
+    action="store_true",
+    dest="overwrite",
+    help="Overwrite existing filings when extracting from feeds. Defaults to config file setting.",
+)
+
 argp.add_argument("--config", action="store_true", dest="print_config", help="Print config file settings.")
 
 argp.add_argument(
@@ -135,10 +144,13 @@ if cl_args.get_indices:
     )
 
 if cl_args.get_feeds or cl_args.extract_feeds:
+    # Use CLI flag if provided, otherwise fall back to config setting
+    overwrite = cl_args.overwrite if cl_args.overwrite else config.OVERWRITE_ON_EXTRACT
     downloader.download_extract_feeds(
         start_date=cl_args.start_date,
         end_date=cl_args.end_date,
         last_n_days=cl_args.last_n_days,
         download_feeds=cl_args.get_feeds,
         extract=cl_args.extract_feeds,
+        overwrite=overwrite,
     )

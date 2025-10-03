@@ -69,6 +69,10 @@ INDEX_CACHE_PATH_FORMAT=full_index_{year}_Q{quarter}.gz
 KEEP_ALL=True
 KEEP_REGEX=
 
+; OVERWRITE_ON_EXTRACT controls whether to overwrite existing filings when extracting from feeds
+; Default is False to avoid re-extracting already downloaded filings
+OVERWRITE_ON_EXTRACT=False
+
 ; User Agent for downloading, to keep the SEC happy
 USER_AGENT=University of Utah, Accounting Department, mac.gaulin@utah.edu
 
@@ -194,6 +198,7 @@ _defaults = {
     "INDEX_CACHE_PATH_FORMAT": "full_index_{year}_Q{quarter}.gz",
     "KEEP_ALL": "True",
     "KEEP_REGEX": "",
+    "OVERWRITE_ON_EXTRACT": "False",
     "INDEX_DELIMITER": "\t",
     "INDEX_EXTENSION": "tab",
     "USER_AGENT": "University of Utah, Accounting Department, mac.gaulin@utah.edu",
@@ -252,6 +257,7 @@ INDEX_CACHE_PATH_FORMAT = CONFIG_OBJECT.get("Paths", "INDEX_CACHE_PATH_FORMAT")
 CACHE_FEED = CONFIG_OBJECT.getboolean("Paths", "CACHE_FEED")
 KEEP_ALL = CONFIG_OBJECT.getboolean("Downloader", "KEEP_ALL")
 KEEP_REGEX = CONFIG_OBJECT.get("Downloader", "KEEP_REGEX")
+OVERWRITE_ON_EXTRACT = CONFIG_OBJECT.getboolean("Downloader", "OVERWRITE_ON_EXTRACT")
 USER_AGENT = CONFIG_OBJECT.get("Downloader", "USER_AGENT")
 
 # Index cache settings
