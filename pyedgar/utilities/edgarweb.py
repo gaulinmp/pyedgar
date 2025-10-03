@@ -275,13 +275,14 @@ def download_from_edgar(
     return None
 
 
-def download_feed(date, overwrite=False, use_requests=False, overwrite_size_threshold=8 * 1024, sleep_after=0):
+def download_feed(date, overwrite=None, use_requests=False, overwrite_size_threshold=8 * 1024, sleep_after=0):
     """Download an edgar daily feed compressed file.
 
     Args:
         date (datetime, str): Date of feed file to download. Can be datetime
             or string (YYYYMMDD format with optional spacing).
-        overwrite (bool): Flag for whether to overwrite any existing file (default False).
+        overwrite (bool, None): Flag for whether to overwrite any existing file. 
+            If None (default), uses config.CACHE_FEED_OVERWRITE setting.
         use_requests (bool): Flag for whether to use requests or curl (default False == curl).
         overwrite_size_threshold (int): Existing files smaller than this will be re-downloaded.
         sleep_after (int): Number of seconds to sleep after downloading file (default 0)
@@ -293,6 +294,10 @@ def download_feed(date, overwrite=False, use_requests=False, overwrite_size_thre
 
     if date.weekday() >= 5:  # skip sat/sun, because computers don't work weekends. Union rules, I think?
         return None
+
+    # Use config value if overwrite is None
+    if overwrite is None:
+        overwrite = config.CACHE_FEED_OVERWRITE
 
     feed_path = config.get_feed_cache_path(date)
     url = get_feed_url(date)

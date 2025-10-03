@@ -145,7 +145,7 @@ if cl_args.get_indices:
 
 if cl_args.get_feeds or cl_args.extract_feeds:
     # Use CLI flag if provided, otherwise fall back to config setting
-    overwrite = cl_args.overwrite if cl_args.overwrite else config.OVERWRITE_ON_EXTRACT
+    overwrite = cl_args.overwrite if cl_args.overwrite else config.CACHE_FEED_OVERWRITE
     downloader.download_extract_feeds(
         start_date=cl_args.start_date,
         end_date=cl_args.end_date,
