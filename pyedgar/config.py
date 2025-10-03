@@ -16,6 +16,10 @@ Example config file:
 ; CACHE_FEED indicates whether the feed should be cached/searched locally
 CACHE_FEED = True
 
+; CACHE_FEED_OVERWRITE controls whether to overwrite existing filings when extracting from feeds
+; Default is False to avoid re-extracting already downloaded filings
+CACHE_FEED_OVERWRITE=False
+
 ; FILING_ROOT is the root of the extracted filings
 FILING_ROOT=/data/bulk/data/edgar/filings/
 
@@ -186,6 +190,7 @@ _defaults = {
     "FILING_ROOT": os.path.join(_tmp_dir, "filings"),
     "FEED_CACHE_ROOT": os.path.join(_tmp_dir, "compressed_daily_feeds"),
     "CACHE_FEED": "False",
+    "CACHE_FEED_OVERWRITE": "False",
     "INDEX_ROOT": os.path.join(_tmp_dir, "indices"),
     "INDEX_CACHE_ROOT": os.path.join(_tmp_dir, "indices"),
     "CACHE_INDEX": "False",
@@ -250,6 +255,7 @@ INDEX_CACHE_PATH_FORMAT = CONFIG_OBJECT.get("Paths", "INDEX_CACHE_PATH_FORMAT")
 
 # Filings cache settings
 CACHE_FEED = CONFIG_OBJECT.getboolean("Paths", "CACHE_FEED")
+CACHE_FEED_OVERWRITE = CONFIG_OBJECT.getboolean("Paths", "CACHE_FEED_OVERWRITE")
 KEEP_ALL = CONFIG_OBJECT.getboolean("Downloader", "KEEP_ALL")
 KEEP_REGEX = CONFIG_OBJECT.get("Downloader", "KEEP_REGEX")
 USER_AGENT = CONFIG_OBJECT.get("Downloader", "USER_AGENT")
